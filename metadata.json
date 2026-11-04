@@ -1,0 +1,6 @@
+{
+  "name": "7 Kebiasaan Anak Indonesia Hebat",
+  "description": "Aplikasi pendidikan karakter untuk mencatat, memantau, mengevaluasi, dan membina 7 Kebiasaan Anak Indonesia Hebat bagi Siswa, Guru, Orang Tua, dan Admin.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
