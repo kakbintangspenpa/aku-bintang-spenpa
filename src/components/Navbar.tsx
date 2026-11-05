@@ -9,6 +9,7 @@ import {
   UserCheck,
   BookMarked
 } from 'lucide-react';
+import { AnimatedStarLogo } from './AnimatedStarLogo';
 
 interface NavbarProps {
   currentUser: User;
@@ -82,9 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-red-600 via-rose-500 to-amber-500 flex items-center justify-center text-white shadow-xs shrink-0">
-              <span className="font-extrabold text-sm sm:text-base tracking-tighter">7K</span>
-            </div>
+            <AnimatedStarLogo size="sm" showRays={false} />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-slate-900 text-xs sm:text-base leading-tight">

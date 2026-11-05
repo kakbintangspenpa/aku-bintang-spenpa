@@ -31,6 +31,12 @@ const STORAGE_KEYS = {
   CURRENT_USER: '7k_current_user_v1'
 };
 
+let idCounter = 0;
+const generateId = (prefix: string) => {
+  idCounter = (idCounter + 1) % 10000;
+  return `${prefix}-${Date.now()}-${idCounter}-${Math.random().toString(36).slice(2, 7)}`;
+};
+
 class StorageService {
   // --- Initialization & Helper ---
   private getItem<T>(key: string, fallback: T): T {
@@ -64,7 +70,7 @@ class StorageService {
     const users = this.getUsers();
     const newUser: User = {
       ...user,
-      id: `usr-${Date.now()}`,
+      id: generateId('usr'),
       createdAt: new Date().toISOString()
     };
     users.push(newUser);
@@ -95,7 +101,14 @@ class StorageService {
 
   // --- Classes ---
   getClasses(): ClassRoom[] {
-    return this.getItem<ClassRoom[]>(STORAGE_KEYS.CLASSES, INITIAL_CLASSES);
+    const stored = this.getItem<ClassRoom[]>(STORAGE_KEYS.CLASSES, INITIAL_CLASSES);
+    // If user's stored classes only have the old 5a/5b and not 7.1, ensure SMP classes are populated
+    const hasSmp = stored.some(c => c.name.includes('7.1') || c.id.includes('7-1'));
+    if (!hasSmp) {
+      this.saveClasses(INITIAL_CLASSES);
+      return INITIAL_CLASSES;
+    }
+    return stored;
   }
 
   saveClasses(classes: ClassRoom[]): void {
@@ -106,12 +119,68 @@ class StorageService {
     const classes = this.getClasses();
     const newClass: ClassRoom = {
       ...cls,
-      id: `kelas-${Date.now()}`
+      id: generateId('kelas')
     };
     classes.push(newClass);
     this.saveClasses(classes);
     this.addAuditLog(actorName, actorRole, 'TAMBAH_KELAS', `Menambahkan kelas baru: ${newClass.name}`);
     return newClass;
+  }
+
+  updateClass(id: string, updates: Partial<ClassRoom>, actorName: string, actorRole: any): ClassRoom | null {
+    const classes = this.getClasses();
+    const idx = classes.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    classes[idx] = { ...classes[idx], ...updates };
+    this.saveClasses(classes);
+    this.addAuditLog(actorName, actorRole, 'UBAH_KELAS', `Memperbarui data kelas: ${classes[idx].name}`);
+    return classes[idx];
+  }
+
+  deleteClass(id: string, actorName: string, actorRole: any): boolean {
+    const classes = this.getClasses();
+    const target = classes.find(c => c.id === id);
+    if (!target) return false;
+    const filtered = classes.filter(c => c.id !== id);
+    this.saveClasses(filtered);
+    this.addAuditLog(actorName, actorRole, 'HAPUS_KELAS', `Menghapus kelas: ${target.name}`);
+    return true;
+  }
+
+  generateSMPClasses(gradesToGenerate: number[] = [7, 8, 9], actorName: string = 'Administrator', actorRole: any = 'admin'): { addedCount: number; existingCount: number } {
+    const currentClasses = this.getClasses();
+    let addedCount = 0;
+    const newClasses = [...currentClasses];
+
+    for (const grade of gradesToGenerate) {
+      for (let i = 1; i <= 11; i++) {
+        const className = `Kelas ${grade}.${i}`;
+        const classAltName = `${grade}.${i}`;
+        const id = `kelas-${grade}-${i}`;
+        const alreadyExists = newClasses.some(
+          c => c.name.toLowerCase() === className.toLowerCase() || c.name.toLowerCase() === classAltName.toLowerCase() || c.id === id
+        );
+
+        if (!alreadyExists) {
+          newClasses.push({
+            id,
+            name: className,
+            grade,
+            waliKelasId: '',
+            totalSiswa: 0,
+            academicYear: '2026/2027'
+          });
+          addedCount++;
+        }
+      }
+    }
+
+    if (addedCount > 0) {
+      this.saveClasses(newClasses);
+      this.addAuditLog(actorName, actorRole, 'TAMBAH_KELAS_MASSAL', `Menambahkan ${addedCount} kelas SMP (${gradesToGenerate.map(g => `${g}.1-${g}.11`).join(', ')})`);
+    }
+
+    return { addedCount, existingCount: newClasses.length };
   }
 
   // --- Journals ---
@@ -128,7 +197,7 @@ class StorageService {
     const now = new Date().toISOString();
     const newEntry: JournalEntry = {
       ...entry,
-      id: `jrn-${Date.now()}`,
+      id: generateId('jrn'),
       guruVerified: false,
       parentAcknowledged: false,
       createdAt: now,
@@ -194,7 +263,7 @@ class StorageService {
     const list = this.getCoachings();
     const newCoaching: TeacherCoaching = {
       ...coaching,
-      id: `cch-${Date.now()}`,
+      id: generateId('cch'),
       createdAt: new Date().toISOString()
     };
     list.unshift(newCoaching);
@@ -222,7 +291,7 @@ class StorageService {
     const list = this.getFeedbacks();
     const newFeedback: ParentFeedback = {
       ...feedback,
-      id: `pfb-${Date.now()}`,
+      id: generateId('pfb'),
       createdAt: new Date().toISOString()
     };
     list.unshift(newFeedback);
@@ -240,7 +309,7 @@ class StorageService {
     const badges = this.getBadges();
     const newBadge: AppreciationBadge = {
       ...badge,
-      id: `bdg-${Date.now()}`,
+      id: generateId('bdg'),
       date: new Date().toISOString().split('T')[0]
     };
     badges.unshift(newBadge);
@@ -251,13 +320,31 @@ class StorageService {
 
   // --- Audit Logs ---
   getAuditLogs(): AuditLog[] {
-    return this.getItem<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, INITIAL_AUDIT_LOGS);
+    const rawLogs = this.getItem<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, INITIAL_AUDIT_LOGS);
+    const seen = new Set<string>();
+    let hasDuplicates = false;
+    const sanitized = rawLogs.map((log, idx) => {
+      if (!log.id || seen.has(log.id)) {
+        hasDuplicates = true;
+        return {
+          ...log,
+          id: `${log.id || 'log'}-${idx}-${Math.random().toString(36).slice(2, 6)}`
+        };
+      }
+      seen.add(log.id);
+      return log;
+    });
+
+    if (hasDuplicates) {
+      this.setItem(STORAGE_KEYS.AUDIT_LOGS, sanitized);
+    }
+    return sanitized;
   }
 
   addAuditLog(userName: string, role: any, action: string, details: string): void {
     const logs = this.getAuditLogs();
     const newLog: AuditLog = {
-      id: `log-${Date.now()}`,
+      id: generateId('log'),
       userId: 'usr-system',
       userName,
       role,

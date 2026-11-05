@@ -43,6 +43,7 @@ export interface User {
   siswaId?: string; // For orang tua (links to their child)
   linkedSiswaIds?: string[]; // If parent has multiple children
   assignedGuruId?: string; // Assigned teacher for student
+  relationship?: string; // For parent e.g., 'Ayah Kandung', 'Ibu Kandung', 'Wali Murid'
   createdAt: string;
   lastLogin?: string;
 }

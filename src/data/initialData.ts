@@ -1,23 +1,34 @@
 import { User, ClassRoom, JournalEntry, TeacherCoaching, ParentFeedback, AppreciationBadge, AuditLog, GoogleDriveConfig } from '../types';
 
-export const INITIAL_CLASSES: ClassRoom[] = [
-  {
-    id: 'kelas-5a',
-    name: 'Kelas 5A - Al-Farabi',
-    grade: 5,
-    waliKelasId: 'usr-guru-dewi',
-    totalSiswa: 28,
-    academicYear: '2026/2027'
-  },
-  {
-    id: 'kelas-5b',
-    name: 'Kelas 5B - Ibnu Sina',
-    grade: 5,
-    waliKelasId: 'usr-guru-rizky',
-    totalSiswa: 26,
-    academicYear: '2026/2027'
+// Generate standard SMP classes: 7.1-7.11, 8.1-8.11, 9.1-9.11
+const generateSMPInitialClasses = (): ClassRoom[] => {
+  const classesList: ClassRoom[] = [];
+  const grades = [7, 8, 9];
+  for (const grade of grades) {
+    for (let i = 1; i <= 11; i++) {
+      const id = `kelas-${grade}-${i}`;
+      let waliId = '';
+      if (grade === 7 && i === 1) waliId = 'usr-guru-dewi';
+      if (grade === 8 && i === 1) waliId = 'usr-guru-rizky';
+
+      let total = 0;
+      if (grade === 7 && i === 1) total = 2; // Bintang & Anisa
+      if (grade === 8 && i === 1) total = 1; // Dimas
+
+      classesList.push({
+        id,
+        name: `Kelas ${grade}.${i}`,
+        grade,
+        waliKelasId: waliId,
+        totalSiswa: total,
+        academicYear: '2026/2027'
+      });
+    }
   }
-];
+  return classesList;
+};
+
+export const INITIAL_CLASSES: ClassRoom[] = generateSMPInitialClasses();
 
 export const INITIAL_USERS: User[] = [
   {
@@ -43,7 +54,7 @@ export const INITIAL_USERS: User[] = [
     phone: '081322334455',
     status: 'active',
     nip: '198504122010012015',
-    kelasId: 'kelas-5a',
+    kelasId: 'kelas-7-1',
     avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-10T08:00:00Z',
     lastLogin: '2026-11-03T07:45:00Z'
@@ -58,7 +69,7 @@ export const INITIAL_USERS: User[] = [
     phone: '081399887766',
     status: 'active',
     nip: '198807192014021003',
-    kelasId: 'kelas-5b',
+    kelasId: 'kelas-8-1',
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-10T08:00:00Z',
     lastLogin: '2026-11-02T14:20:00Z'
@@ -70,7 +81,7 @@ export const INITIAL_USERS: User[] = [
     fullName: 'Bintang Pratama',
     role: 'siswa',
     nisn: '0129485721',
-    kelasId: 'kelas-5a',
+    kelasId: 'kelas-7-1',
     assignedGuruId: 'usr-guru-dewi',
     status: 'active',
     avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
@@ -84,7 +95,7 @@ export const INITIAL_USERS: User[] = [
     fullName: 'Anisa Rahmawati',
     role: 'siswa',
     nisn: '0129485722',
-    kelasId: 'kelas-5a',
+    kelasId: 'kelas-7-1',
     assignedGuruId: 'usr-guru-dewi',
     status: 'active',
     avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
@@ -98,7 +109,7 @@ export const INITIAL_USERS: User[] = [
     fullName: 'Dimas Aditya',
     role: 'siswa',
     nisn: '0129485723',
-    kelasId: 'kelas-5b',
+    kelasId: 'kelas-8-1',
     assignedGuruId: 'usr-guru-rizky',
     status: 'active',
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',

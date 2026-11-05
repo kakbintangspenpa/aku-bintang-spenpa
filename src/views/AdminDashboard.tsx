@@ -33,7 +33,17 @@ import {
   ShieldCheck,
   ChevronRight,
   Sparkles,
-  Info
+  Info,
+  GraduationCap,
+  UserCheck,
+  HeartHandshake,
+  Search,
+  UserPlus,
+  Trash2,
+  Phone,
+  Mail,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -87,6 +97,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [nisnNip, setNisnNip] = useState('');
   const [kelasId, setKelasId] = useState('');
   const [selectedChildId, setSelectedChildId] = useState('');
+  const [assignedGuruId, setAssignedGuruId] = useState('');
+  const [relationship, setRelationship] = useState('Ayah Kandung');
+  const [userPassword, setUserPassword] = useState('password123');
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+
+  // User table filter & search
+  const [userFilterRole, setUserFilterRole] = useState<'all' | Role>('all');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+
+  // Delete user state
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
+  // Class management states
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassRoom | null>(null);
+  const [classNameInput, setClassNameInput] = useState('');
+  const [classGradeInput, setClassGradeInput] = useState<number>(7);
+  const [classWaliInput, setClassWaliInput] = useState('');
+  const [classYearInput, setClassYearInput] = useState('2026/2027');
+  const [classSearchQuery, setClassSearchQuery] = useState('');
+  const [classGradeFilter, setClassGradeFilter] = useState<'all' | 7 | 8 | 9>('all');
+  const [classToDelete, setClassToDelete] = useState<ClassRoom | null>(null);
+  const [classBatchMessage, setClassBatchMessage] = useState('');
+  const [classFormError, setClassFormError] = useState('');
 
   // Password reset state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -113,16 +148,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setTimeout(() => setCopiedCode(false), 2500);
   };
 
-  const handleOpenAddUser = () => {
+  const handleOpenAddUser = (targetRole: Role = 'siswa') => {
     setEditingUser(null);
+    setRole(targetRole);
     setFullName('');
     setUsername('');
-    setRole('siswa');
     setEmail('');
     setPhone('');
     setNisnNip('');
     setKelasId(classes[0]?.id || '');
-    setSelectedChildId('');
+    const firstStudent = users.find(u => u.role === 'siswa');
+    setSelectedChildId(firstStudent?.id || '');
+    const firstTeacher = users.find(u => u.role === 'guru');
+    setAssignedGuruId(firstTeacher?.id || '');
+    setRelationship('Ayah Kandung');
+    setUserPassword('password123');
+    setFormError('');
+    setFormSuccess('');
     setShowUserModal(true);
   };
 
@@ -134,14 +176,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEmail(user.email || '');
     setPhone(user.phone || '');
     setNisnNip(user.nisn || user.nip || '');
-    setKelasId(user.kelasId || '');
+    setKelasId(user.kelasId || classes[0]?.id || '');
     setSelectedChildId(user.siswaId || '');
+    setAssignedGuruId(user.assignedGuruId || '');
+    setRelationship(user.relationship || 'Ayah Kandung');
+    setUserPassword('');
+    setFormError('');
+    setFormSuccess('');
     setShowUserModal(true);
+  };
+
+  const handleAutoGenerateUsername = () => {
+    if (!fullName.trim()) return;
+    const cleanName = fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.').replace(/^\.|\.$/g, '');
+    const firstWord = cleanName.split('.')[0] || 'user';
+    const randomSuffix = Math.floor(10 + Math.random() * 89);
+    
+    if (role === 'siswa') {
+      setUsername(`siswa.${firstWord}`);
+    } else if (role === 'guru') {
+      setUsername(`guru.${firstWord}`);
+    } else if (role === 'orang_tua') {
+      if (selectedChildId) {
+        const student = users.find(u => u.id === selectedChildId);
+        const childWord = student ? student.fullName.toLowerCase().split(' ')[0].replace(/[^a-z0-9]/g, '') : firstWord;
+        setUsername(`ortu.${childWord}`);
+      } else {
+        setUsername(`ortu.${firstWord}`);
+      }
+    } else {
+      setUsername(`admin.${firstWord}${randomSuffix}`);
+    }
   };
 
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !username.trim()) return;
+    setFormError('');
+
+    if (!fullName.trim()) {
+      setFormError('Nama lengkap wajib diisi.');
+      return;
+    }
+    if (!username.trim()) {
+      setFormError('Username pengguna wajib diisi.');
+      return;
+    }
+
+    // Check username uniqueness
+    const duplicate = users.find(
+      u => u.username.toLowerCase() === username.trim().toLowerCase() && u.id !== editingUser?.id
+    );
+    if (duplicate) {
+      setFormError(`Username "${username.trim()}" sudah digunakan oleh ${duplicate.fullName}. Silakan tentukan username yang berbeda.`);
+      return;
+    }
+
+    if (role === 'orang_tua' && !selectedChildId) {
+      setFormError('Harap pilih data siswa / anak yang terhubung.');
+      return;
+    }
 
     if (editingUser) {
       storageService.updateUser(
@@ -155,8 +248,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           nisn: role === 'siswa' ? nisnNip.trim() : undefined,
           nip: role === 'guru' ? nisnNip.trim() : undefined,
           kelasId: (role === 'siswa' || role === 'guru') ? kelasId : undefined,
+          assignedGuruId: role === 'siswa' ? assignedGuruId : undefined,
           siswaId: role === 'orang_tua' ? selectedChildId : undefined,
-          linkedSiswaIds: role === 'orang_tua' && selectedChildId ? [selectedChildId] : undefined
+          linkedSiswaIds: role === 'orang_tua' && selectedChildId ? [selectedChildId] : undefined,
+          relationship: role === 'orang_tua' ? relationship : undefined,
         },
         currentUser.fullName,
         'admin'
@@ -166,7 +261,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {
           fullName: fullName.trim(),
           username: username.trim(),
-          password: 'password123',
+          password: userPassword.trim() || 'password123',
           role,
           status: 'active',
           email: email.trim() || undefined,
@@ -174,8 +269,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           nisn: role === 'siswa' ? nisnNip.trim() : undefined,
           nip: role === 'guru' ? nisnNip.trim() : undefined,
           kelasId: (role === 'siswa' || role === 'guru') ? kelasId : undefined,
+          assignedGuruId: role === 'siswa' ? assignedGuruId : undefined,
           siswaId: role === 'orang_tua' ? selectedChildId : undefined,
-          linkedSiswaIds: role === 'orang_tua' && selectedChildId ? [selectedChildId] : undefined
+          linkedSiswaIds: role === 'orang_tua' && selectedChildId ? [selectedChildId] : undefined,
+          relationship: role === 'orang_tua' ? relationship : undefined,
         },
         currentUser.fullName,
         'admin'
@@ -183,6 +280,101 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     setShowUserModal(false);
+    onRefreshData();
+  };
+
+  const handleDeleteUser = () => {
+    if (!userToDelete) return;
+    storageService.deleteUser(userToDelete.id, currentUser.fullName, 'admin');
+    setUserToDelete(null);
+    onRefreshData();
+  };
+
+  // Class action handlers
+  const handleOpenAddClass = (suggestedGrade: number = 7) => {
+    setEditingClass(null);
+    setClassGradeInput(suggestedGrade);
+    const existingInGrade = classes.filter(c => c.grade === suggestedGrade);
+    const nextNum = existingInGrade.length < 11 ? existingInGrade.length + 1 : existingInGrade.length + 1;
+    setClassNameInput(`Kelas ${suggestedGrade}.${nextNum}`);
+    setClassWaliInput('');
+    setClassYearInput('2026/2027');
+    setClassFormError('');
+    setShowClassModal(true);
+  };
+
+  const handleOpenEditClass = (cls: ClassRoom) => {
+    setEditingClass(cls);
+    setClassNameInput(cls.name);
+    setClassGradeInput(cls.grade);
+    setClassWaliInput(cls.waliKelasId || '');
+    setClassYearInput(cls.academicYear || '2026/2027');
+    setClassFormError('');
+    setShowClassModal(true);
+  };
+
+  const handleSaveClass = (e: React.FormEvent) => {
+    e.preventDefault();
+    setClassFormError('');
+    if (!classNameInput.trim()) {
+      setClassFormError('Nama kelas wajib diisi.');
+      return;
+    }
+
+    // Check duplicate
+    const duplicate = classes.find(
+      c => c.name.toLowerCase() === classNameInput.trim().toLowerCase() && c.id !== editingClass?.id
+    );
+    if (duplicate) {
+      setClassFormError(`Kelas dengan nama "${classNameInput.trim()}" sudah terdaftar.`);
+      return;
+    }
+
+    if (editingClass) {
+      storageService.updateClass(
+        editingClass.id,
+        {
+          name: classNameInput.trim(),
+          grade: Number(classGradeInput),
+          waliKelasId: classWaliInput,
+          academicYear: classYearInput.trim() || '2026/2027'
+        },
+        currentUser.fullName,
+        'admin'
+      );
+    } else {
+      storageService.addClass(
+        {
+          name: classNameInput.trim(),
+          grade: Number(classGradeInput),
+          waliKelasId: classWaliInput,
+          totalSiswa: 0,
+          academicYear: classYearInput.trim() || '2026/2027'
+        },
+        currentUser.fullName,
+        'admin'
+      );
+    }
+
+    setShowClassModal(false);
+    onRefreshData();
+  };
+
+  const handleDeleteClass = () => {
+    if (!classToDelete) return;
+    storageService.deleteClass(classToDelete.id, currentUser.fullName, 'admin');
+    setClassToDelete(null);
+    onRefreshData();
+  };
+
+  const handleBatchGenerateSMPClasses = (grades: number[] = [7, 8, 9]) => {
+    const result = storageService.generateSMPClasses(grades, currentUser.fullName, 'admin');
+    if (result.addedCount > 0) {
+      setClassBatchMessage(`✅ Berhasil menambahkan ${result.addedCount} rombel kelas SMP (${grades.map(g => `${g}.1-${g}.11`).join(', ')})! Total rombel saat ini: ${result.existingCount}.`);
+    } else {
+      setClassBatchMessage(`ℹ️ Seluruh rombel kelas ${grades.map(g => `${g}.1-${g}.11`).join(', ')} sudah tersedia lengkap (${result.existingCount} kelas).`);
+    }
+    setTimeout(() => setClassBatchMessage(''), 4500);
     onRefreshData();
   };
 
@@ -279,41 +471,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
             <button
               onClick={() => setAdminTab('docs')}
-              className="flex-1 sm:flex-initial px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
+              className="px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
             >
               <BookOpen className="w-4 h-4" />
               <span>Arsitektur & Skema</span>
             </button>
             <button
-              onClick={handleOpenAddUser}
-              className="flex-1 sm:flex-initial px-3.5 py-2 bg-purple-500 hover:bg-purple-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
+              onClick={() => handleOpenAddUser('siswa')}
+              className="px-2.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1"
+              title="Tambah Data Siswa Baru"
             >
-              <Plus className="w-4 h-4" />
-              <span>Tambah User</span>
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>+ Siswa</span>
+            </button>
+            <button
+              onClick={() => handleOpenAddUser('guru')}
+              className="px-2.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1"
+              title="Tambah Data Guru Baru"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>+ Guru</span>
+            </button>
+            <button
+              onClick={() => handleOpenAddUser('orang_tua')}
+              className="px-2.5 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1"
+              title="Tambah Data Orang Tua Baru"
+            >
+              <HeartHandshake className="w-3.5 h-3.5" />
+              <span>+ Ortu</span>
             </button>
           </div>
         </div>
 
-        {/* 4 Quick Stat Pills */}
+        {/* 4 Quick Stat Pills with Direct Add Actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3.5 mt-3 border-t border-white/20 text-xs">
-          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10">
-            <span className="text-[10px] text-purple-200 block">Siswa</span>
-            <span className="text-lg font-black text-white">{totalSiswa} Siswa</span>
+          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-purple-200 block">Siswa Aktif</span>
+              <GraduationCap className="w-3.5 h-3.5 text-emerald-300" />
+            </div>
+            <span className="text-lg font-black text-white mt-1">{totalSiswa} Siswa</span>
+            <button
+              onClick={() => handleOpenAddUser('siswa')}
+              className="mt-2 text-[10px] font-bold text-emerald-200 hover:text-white bg-emerald-500/30 hover:bg-emerald-500/50 py-1 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+            >
+              <Plus className="w-3 h-3" /> Tambah Siswa
+            </button>
           </div>
-          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10">
-            <span className="text-[10px] text-purple-200 block">Guru</span>
-            <span className="text-lg font-black text-white">{totalGuru} Guru</span>
+
+          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-purple-200 block">Guru & Pembina</span>
+              <UserCheck className="w-3.5 h-3.5 text-blue-300" />
+            </div>
+            <span className="text-lg font-black text-white mt-1">{totalGuru} Guru</span>
+            <button
+              onClick={() => handleOpenAddUser('guru')}
+              className="mt-2 text-[10px] font-bold text-blue-200 hover:text-white bg-blue-500/30 hover:bg-blue-500/50 py-1 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+            >
+              <Plus className="w-3 h-3" /> Tambah Guru
+            </button>
           </div>
-          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10">
-            <span className="text-[10px] text-purple-200 block">Orang Tua</span>
-            <span className="text-lg font-black text-white">{totalOrtu} Orang</span>
+
+          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-purple-200 block">Orang Tua / Wali</span>
+              <HeartHandshake className="w-3.5 h-3.5 text-amber-300" />
+            </div>
+            <span className="text-lg font-black text-white mt-1">{totalOrtu} Orang</span>
+            <button
+              onClick={() => handleOpenAddUser('orang_tua')}
+              className="mt-2 text-[10px] font-bold text-amber-200 hover:text-white bg-amber-500/30 hover:bg-amber-500/50 py-1 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+            >
+              <Plus className="w-3 h-3" /> Tambah Ortu
+            </button>
           </div>
-          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10">
-            <span className="text-[10px] text-purple-200 block">Kelas</span>
-            <span className="text-lg font-black text-white">{classes.length} Kelas</span>
+
+          <div className="bg-white/10 rounded-xl p-2.5 border border-white/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-purple-200 block">Rombongan Belajar</span>
+              <Layers className="w-3.5 h-3.5 text-purple-300" />
+            </div>
+            <span className="text-lg font-black text-white mt-1">{classes.length} Kelas</span>
+            <button
+              onClick={() => setAdminTab('classes')}
+              className="mt-2 text-[10px] font-bold text-purple-200 hover:text-white bg-white/10 hover:bg-white/20 py-1 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+            >
+              <span>Kelola Kelas</span>
+            </button>
           </div>
         </div>
       </div>
@@ -779,6 +1027,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
 
+          {/* Quick Action Cards: Tambah Data Siswa, Guru, Orang Tua */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                Pintasan Penambahan Data Pengguna Sekolah
+              </h3>
+              <span className="text-[11px] text-slate-500 hidden sm:inline">Pilih peran untuk membuka formulir pendaftaran</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Tambah Siswa Card */}
+              <div className="bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white border border-emerald-200/90 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                      <GraduationCap className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {totalSiswa} Terdaftar
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-emerald-950">Tambah Data Siswa</h4>
+                    <p className="text-xs text-emerald-800/90 leading-relaxed mt-0.5">
+                      Daftarkan akun siswa baru dengan NISN 10 digit, penempatan rombel kelas, serta guru pembina wali.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenAddUser('siswa')}
+                  className="mt-3.5 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Tambah Data Siswa</span>
+                </button>
+              </div>
+
+              {/* Tambah Guru Card */}
+              <div className="bg-gradient-to-br from-blue-50 via-indigo-50/40 to-white border border-blue-200/90 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                      <UserCheck className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                      {totalGuru} Pendidik
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-blue-950">Tambah Data Guru</h4>
+                    <p className="text-xs text-blue-800/90 leading-relaxed mt-0.5">
+                      Daftarkan guru mata pelajaran atau wali kelas resmi dengan NIP, nomor WhatsApp, & verifikasi jurnal.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenAddUser('guru')}
+                  className="mt-3.5 w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Tambah Data Guru</span>
+                </button>
+              </div>
+
+              {/* Tambah Ortu Card */}
+              <div className="bg-gradient-to-br from-amber-50 via-orange-50/40 to-white border border-amber-200/90 rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                      <HeartHandshake className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                      {totalOrtu} Orang Tua
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-amber-950">Tambah Data Orang Tua</h4>
+                    <p className="text-xs text-amber-800/90 leading-relaxed mt-0.5">
+                      Daftarkan akun orang tua/wali murid yang langsung ditautkan ke akun siswa untuk pemantauan 7 kebiasaan.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenAddUser('orang_tua')}
+                  className="mt-3.5 w-full py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Tambah Data Orang Tua</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="font-bold text-sm text-slate-900">
@@ -815,106 +1156,366 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* 5. USERS TAB */}
       {adminTab === 'users' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h3 className="font-bold text-sm text-slate-900">
-              Daftar Pengguna Sistem ({users.length})
-            </h3>
-            <button
-              onClick={handleOpenAddUser}
-              className="px-2.5 py-1 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Tambah</span>
-            </button>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+          {/* Top Actions: 3 Dedicated Buttons for Siswa, Guru, Ortu */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="font-extrabold text-base text-slate-900">
+                Manajemen Data Pengguna ({users.length})
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Kelola data akun siswa, guru pembina, orang tua/wali murid, dan administrator sekolah.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => handleOpenAddUser('siswa')}
+                className="px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>+ Tambah Data Siswa</span>
+              </button>
+              <button
+                onClick={() => handleOpenAddUser('guru')}
+                className="px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>+ Tambah Data Guru</span>
+              </button>
+              <button
+                onClick={() => handleOpenAddUser('orang_tua')}
+                className="px-3 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+              >
+                <HeartHandshake className="w-4 h-4" />
+                <span>+ Tambah Data Orang Tua</span>
+              </button>
+            </div>
           </div>
 
-          {/* Mobile View: Cards */}
-          <div className="sm:hidden space-y-2">
-            {users.map(u => (
-              <div key={u.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-slate-900 block">{u.fullName}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">@{u.username}</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    u.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                    u.role === 'guru' ? 'bg-blue-100 text-blue-800' :
-                    u.role === 'siswa' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {u.role.replace('_', ' ')}
-                  </span>
-                </div>
+          {/* Filter & Search Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            {/* Role Filter Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar p-1 bg-slate-100 rounded-xl text-xs font-bold">
+              <button
+                onClick={() => setUserFilterRole('all')}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                  userFilterRole === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Semua ({users.length})
+              </button>
+              <button
+                onClick={() => setUserFilterRole('siswa')}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 ${
+                  userFilterRole === 'siswa' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-800 hover:bg-emerald-100/60'
+                }`}
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Siswa ({totalSiswa})</span>
+              </button>
+              <button
+                onClick={() => setUserFilterRole('guru')}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 ${
+                  userFilterRole === 'guru' ? 'bg-blue-600 text-white shadow-2xs' : 'text-blue-800 hover:bg-blue-100/60'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Guru ({totalGuru})</span>
+              </button>
+              <button
+                onClick={() => setUserFilterRole('orang_tua')}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 ${
+                  userFilterRole === 'orang_tua' ? 'bg-amber-600 text-white shadow-2xs' : 'text-amber-800 hover:bg-amber-100/60'
+                }`}
+              >
+                <HeartHandshake className="w-3.5 h-3.5" />
+                <span>Orang Tua ({totalOrtu})</span>
+              </button>
+              <button
+                onClick={() => setUserFilterRole('admin')}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 ${
+                  userFilterRole === 'admin' ? 'bg-purple-600 text-white shadow-2xs' : 'text-purple-800 hover:bg-purple-100/60'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5" />
+                <span>Admin ({totalAdmin})</span>
+              </button>
+            </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px]">
+            {/* Search Input */}
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nama, username, NISN/NIP..."
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all"
+              />
+              {userSearchQuery && (
+                <button
+                  onClick={() => setUserSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* User List: Mobile Cards */}
+          {(() => {
+            const filteredUsers = users.filter(u => {
+              if (userFilterRole !== 'all' && u.role !== userFilterRole) return false;
+              if (userSearchQuery.trim()) {
+                const q = userSearchQuery.toLowerCase().trim();
+                const matchName = u.fullName.toLowerCase().includes(q);
+                const matchUser = u.username.toLowerCase().includes(q);
+                const matchNisn = u.nisn?.toLowerCase().includes(q);
+                const matchNip = u.nip?.toLowerCase().includes(q);
+                const matchPhone = u.phone?.toLowerCase().includes(q);
+                const matchEmail = u.email?.toLowerCase().includes(q);
+                const cls = classes.find(c => c.id === u.kelasId)?.name.toLowerCase();
+                const matchClass = cls?.includes(q);
+                return matchName || matchUser || matchNisn || matchNip || matchPhone || matchEmail || matchClass;
+              }
+              return true;
+            });
+
+            if (filteredUsers.length === 0) {
+              return (
+                <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-xs text-slate-500 font-semibold">Tidak ada pengguna yang cocok dengan filter atau kata kunci pencarian.</p>
                   <button
-                    onClick={() => handleToggleUserStatus(u)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      u.status === 'active' ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'
-                    }`}
+                    onClick={() => { setUserFilterRole('all'); setUserSearchQuery(''); }}
+                    className="mt-2 text-xs font-bold text-purple-600 hover:underline"
                   >
-                    {u.status === 'active' ? 'Status: Aktif' : 'Status: Nonaktif'}
+                    Reset Filter
                   </button>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenResetPassword(u)}
-                      className="p-1 text-amber-700 hover:bg-amber-100 rounded"
-                      title="Reset Kata Sandi"
-                    >
-                      <Key className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleOpenEditUser(u)}
-                      className="p-1 text-blue-700 hover:bg-blue-100 rounded"
-                      title="Edit"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              );
+            }
 
-          {/* Desktop View: Table */}
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="p-2.5">Nama</th>
-                  <th className="p-2.5">Username</th>
-                  <th className="p-2.5">Peran</th>
-                  <th className="p-2.5">Status</th>
-                  <th className="p-2.5 text-right">Kelola</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-50">
-                    <td className="p-2.5 font-bold text-slate-900">{u.fullName}</td>
-                    <td className="p-2.5 font-mono text-slate-600">{u.username}</td>
-                    <td className="p-2.5 font-bold uppercase text-[10px] text-purple-700">{u.role}</td>
-                    <td className="p-2.5">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        u.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {u.status === 'active' ? 'Aktif' : 'Nonaktif'}
-                      </span>
-                    </td>
-                    <td className="p-2.5 text-right space-x-1">
-                      <button onClick={() => handleOpenResetPassword(u)} className="p-1 text-amber-600 hover:bg-amber-50 rounded">
-                        <Key className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => handleOpenEditUser(u)} className="p-1 text-blue-600 hover:bg-blue-50 rounded">
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            return (
+              <>
+                {/* Mobile Cards */}
+                <div className="sm:hidden space-y-2.5">
+                  {filteredUsers.map(u => {
+                    const uClass = classes.find(c => c.id === u.kelasId);
+                    const child = u.siswaId ? users.find(s => s.id === u.siswaId) : null;
+                    const teacher = u.assignedGuruId ? users.find(g => g.id === u.assignedGuruId) : null;
+
+                    return (
+                      <div key={u.id} className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-2 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              {u.role === 'siswa' && <GraduationCap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                              {u.role === 'guru' && <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                              {u.role === 'orang_tua' && <HeartHandshake className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+                              {u.role === 'admin' && <Shield className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                              <span className="font-bold text-slate-900">{u.fullName}</span>
+                            </div>
+                            <span className="text-[11px] text-slate-500 font-mono block mt-0.5">@{u.username}</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase shrink-0 ${
+                            u.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                            u.role === 'guru' ? 'bg-blue-100 text-blue-800' :
+                            u.role === 'siswa' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {u.role.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        {/* Role Details */}
+                        <div className="text-[11px] text-slate-600 space-y-0.5 pt-1 border-t border-slate-200/60">
+                          {u.role === 'siswa' && (
+                            <>
+                              <div>NISN: <strong className="font-mono text-slate-800">{u.nisn || '-'}</strong> | Kelas: <strong>{uClass?.name || '-'}</strong></div>
+                              {teacher && <div className="text-slate-500">Guru Pembina: <strong>{teacher.fullName}</strong></div>}
+                            </>
+                          )}
+                          {u.role === 'guru' && (
+                            <>
+                              <div>NIP: <strong className="font-mono text-slate-800">{u.nip || '-'}</strong></div>
+                              <div>Penugasan: <strong>{uClass ? `Wali Kelas ${uClass.name}` : 'Guru Mata Pelajaran'}</strong></div>
+                            </>
+                          )}
+                          {u.role === 'orang_tua' && (
+                            <>
+                              <div>Hubungan: <strong>{u.relationship || 'Orang Tua / Wali'}</strong></div>
+                              <div>Siswa Terhubung: <strong className="text-amber-800">{child ? `${child.fullName} (${classes.find(c => c.id === child.kelasId)?.name || 'Siswa'})` : '-'}</strong></div>
+                            </>
+                          )}
+                          {u.phone && <div className="text-slate-500 font-mono">WA/HP: {u.phone}</div>}
+                        </div>
+
+                        {/* Card Actions */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
+                          <button
+                            onClick={() => handleToggleUserStatus(u)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              u.status === 'active' ? 'text-emerald-700 bg-emerald-100/70' : 'text-red-700 bg-red-100/70'
+                            }`}
+                          >
+                            {u.status === 'active' ? '● Aktif' : '○ Nonaktif'}
+                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenResetPassword(u)}
+                              className="p-1.5 text-amber-700 hover:bg-amber-100 rounded-lg"
+                              title="Reset Kata Sandi"
+                            >
+                              <Key className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditUser(u)}
+                              className="p-1.5 text-blue-700 hover:bg-blue-100 rounded-lg"
+                              title="Edit Data"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            {u.id !== currentUser.id && (
+                              <button
+                                onClick={() => setUserToDelete(u)}
+                                className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg"
+                                title="Hapus Akun"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop View: Rich Table */}
+                <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">Nama & Identitas</th>
+                        <th className="p-3">Username & Kontak</th>
+                        <th className="p-3">Peran & Penempatan</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Kelola</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {filteredUsers.map(u => {
+                        const uClass = classes.find(c => c.id === u.kelasId);
+                        const child = u.siswaId ? users.find(s => s.id === u.siswaId) : null;
+                        const teacher = u.assignedGuruId ? users.find(g => g.id === u.assignedGuruId) : null;
+
+                        return (
+                          <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
+                                  u.role === 'siswa' ? 'bg-emerald-100 text-emerald-800' :
+                                  u.role === 'guru' ? 'bg-blue-100 text-blue-800' :
+                                  u.role === 'orang_tua' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
+                                }`}>
+                                  {u.role === 'siswa' && <GraduationCap className="w-4 h-4" />}
+                                  {u.role === 'guru' && <UserCheck className="w-4 h-4" />}
+                                  {u.role === 'orang_tua' && <HeartHandshake className="w-4 h-4" />}
+                                  {u.role === 'admin' && <Shield className="w-4 h-4" />}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-900 block">{u.fullName}</span>
+                                  {u.role === 'siswa' && u.nisn && (
+                                    <span className="text-[10px] text-slate-500 font-mono">NISN: {u.nisn}</span>
+                                  )}
+                                  {u.role === 'guru' && u.nip && (
+                                    <span className="text-[10px] text-slate-500 font-mono">NIP: {u.nip}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="p-3">
+                              <div className="font-mono text-slate-700 font-semibold">@{u.username}</div>
+                              {u.phone && <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5"><Phone className="w-2.5 h-2.5" />{u.phone}</div>}
+                              {u.email && <div className="text-[10px] text-slate-400 truncate max-w-[150px]">{u.email}</div>}
+                            </td>
+
+                            <td className="p-3">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                                u.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                                u.role === 'guru' ? 'bg-blue-100 text-blue-800' :
+                                u.role === 'siswa' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {u.role === 'siswa' && <GraduationCap className="w-3 h-3" />}
+                                {u.role === 'guru' && <UserCheck className="w-3 h-3" />}
+                                {u.role === 'orang_tua' && <HeartHandshake className="w-3 h-3" />}
+                                {u.role === 'admin' && <Shield className="w-3 h-3" />}
+                                {u.role.replace('_', ' ')}
+                              </span>
+
+                              <div className="text-[11px] text-slate-600 mt-1">
+                                {u.role === 'siswa' && (
+                                  <span>{uClass ? `Kelas: ${uClass.name}` : 'Belum ada kelas'}</span>
+                                )}
+                                {u.role === 'guru' && (
+                                  <span>{uClass ? `Wali Kelas: ${uClass.name}` : 'Guru Mata Pelajaran'}</span>
+                                )}
+                                {u.role === 'orang_tua' && (
+                                  <span>{child ? `Anak: ${child.fullName}` : 'Belum terhubung'}</span>
+                                )}
+                                {u.role === 'admin' && <span>Akses Penuh Sistem</span>}
+                              </div>
+                            </td>
+
+                            <td className="p-3">
+                              <button
+                                onClick={() => handleToggleUserStatus(u)}
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                  u.status === 'active' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                }`}
+                              >
+                                {u.status === 'active' ? '● Aktif' : '○ Nonaktif'}
+                              </button>
+                            </td>
+
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => handleOpenResetPassword(u)}
+                                  className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                  title="Reset Kata Sandi"
+                                >
+                                  <Key className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenEditUser(u)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Edit Data"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                {u.id !== currentUser.id && (
+                                  <button
+                                    onClick={() => setUserToDelete(u)}
+                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Hapus Akun"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -995,25 +1596,264 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* 7. CLASSES TAB */}
+      {/* 7. CLASSES TAB (Manajemen Kelas SMP 7.1-7.11, 8.1-8.11, 9.1-9.11) */}
       {adminTab === 'classes' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3">
-          <h3 className="font-bold text-sm text-slate-900 pb-2 border-b border-slate-100">
-            Daftar Kelas ({classes.length})
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {classes.map(c => {
-              const wali = users.find(u => u.id === c.waliKelasId);
-              const classStudents = users.filter(u => u.role === 'siswa' && u.kelasId === c.id);
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+          {/* Header & Main Action Buttons */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <h3 className="font-extrabold text-base text-slate-900">
+                  Manajemen Data Rombongan Belajar / Kelas ({classes.length} Kelas)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Kelola rombel kelas SMP (Tingkat 7, 8, dan 9), penetapan wali kelas pembina, dan monitoring jumlah siswa.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => handleBatchGenerateSMPClasses([7, 8, 9])}
+                className="px-3.5 py-2 text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+                title="Buat Otomatis 33 Kelas SMP Sekaligus (7.1 s/d 7.11, 8.1 s/d 8.11, 9.1 s/d 9.11)"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                <span>+ Inisialisasi Kelas 7.1-7.11, 8.1-8.11, 9.1-9.11</span>
+              </button>
+
+              <button
+                onClick={() => handleOpenAddClass(7)}
+                className="px-3 py-2 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Tambah Kelas Baru</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Feedback message banner */}
+          {classBatchMessage && (
+            <div className="p-3 bg-purple-50 border border-purple-200 text-purple-900 rounded-xl text-xs font-medium flex items-center gap-2 animate-in fade-in duration-200">
+              <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
+              <span>{classBatchMessage}</span>
+            </div>
+          )}
+
+          {/* Quick Shortcuts to Generate per Grade */}
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-slate-50 to-purple-50/40 border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2 text-slate-700 font-bold">
+              <span className="text-[11px] uppercase tracking-wider text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md">
+                Pintasan Massal:
+              </span>
+              <span>Buat kelas per tingkat sekaligus:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => handleBatchGenerateSMPClasses([7])}
+                className="px-2.5 py-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg flex items-center gap-1 transition-colors"
+                title="Buat Kelas 7.1 sampai 7.11"
+              >
+                <Plus className="w-3 h-3 text-emerald-600" />
+                <span>Kelas 7.1 - 7.11 (Tingkat 7)</span>
+              </button>
+              <button
+                onClick={() => handleBatchGenerateSMPClasses([8])}
+                className="px-2.5 py-1 text-[11px] font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center gap-1 transition-colors"
+                title="Buat Kelas 8.1 sampai 8.11"
+              >
+                <Plus className="w-3 h-3 text-blue-600" />
+                <span>Kelas 8.1 - 8.11 (Tingkat 8)</span>
+              </button>
+              <button
+                onClick={() => handleBatchGenerateSMPClasses([9])}
+                className="px-2.5 py-1 text-[11px] font-bold text-purple-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1 transition-colors"
+                title="Buat Kelas 9.1 sampai 9.11"
+              >
+                <Plus className="w-3 h-3 text-purple-600" />
+                <span>Kelas 9.1 - 9.11 (Tingkat 9)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filter & Search Toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            {/* Grade Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar p-1 bg-slate-100 rounded-xl text-xs font-bold">
+              <button
+                onClick={() => setClassGradeFilter('all')}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all ${
+                  classGradeFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Semua Kelas ({classes.length})
+              </button>
+              <button
+                onClick={() => setClassGradeFilter(7)}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 ${
+                  classGradeFilter === 7 ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-800 hover:bg-emerald-100/60'
+                }`}
+              >
+                <span>Tingkat 7 ({classes.filter(c => c.grade === 7).length})</span>
+              </button>
+              <button
+                onClick={() => setClassGradeFilter(8)}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 ${
+                  classGradeFilter === 8 ? 'bg-blue-600 text-white shadow-2xs' : 'text-blue-800 hover:bg-blue-100/60'
+                }`}
+              >
+                <span>Tingkat 8 ({classes.filter(c => c.grade === 8).length})</span>
+              </button>
+              <button
+                onClick={() => setClassGradeFilter(9)}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all flex items-center gap-1 ${
+                  classGradeFilter === 9 ? 'bg-purple-600 text-white shadow-2xs' : 'text-purple-800 hover:bg-purple-100/60'
+                }`}
+              >
+                <span>Tingkat 9 ({classes.filter(c => c.grade === 9).length})</span>
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari kelas (misal: 7.1, 8.5)..."
+                value={classSearchQuery}
+                onChange={(e) => setClassSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all"
+              />
+              {classSearchQuery && (
+                <button
+                  onClick={() => setClassSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Grid of Class Cards */}
+          {(() => {
+            const filteredClasses = classes.filter(c => {
+              if (classGradeFilter !== 'all' && c.grade !== classGradeFilter) return false;
+              if (classSearchQuery.trim()) {
+                const q = classSearchQuery.toLowerCase().trim();
+                const matchName = c.name.toLowerCase().includes(q);
+                const wali = users.find(u => u.id === c.waliKelasId);
+                const matchWali = wali?.fullName.toLowerCase().includes(q);
+                return matchName || matchWali;
+              }
+              return true;
+            });
+
+            // Sort natural order by grade and class number (e.g. 7.1, 7.2 ... 7.10, 7.11)
+            filteredClasses.sort((a, b) => {
+              if (a.grade !== b.grade) return a.grade - b.grade;
+              const numA = parseInt(a.name.replace(/[^0-9]/g, '')) || 0;
+              const numB = parseInt(b.name.replace(/[^0-9]/g, '')) || 0;
+              return numA - numB;
+            });
+
+            if (filteredClasses.length === 0) {
               return (
-                <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1 text-xs">
-                  <span className="font-bold text-slate-900 block">{c.name}</span>
-                  <div className="text-[11px] text-slate-600">Wali: <strong>{wali?.fullName || '-'}</strong></div>
-                  <div className="text-[11px] text-slate-600">Total: <strong>{classStudents.length} Siswa</strong></div>
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                  <p className="text-xs text-slate-500 font-semibold">Tidak ada kelas yang sesuai dengan filter atau pencarian.</p>
+                  <div className="flex items-center justify-center gap-2 pt-1">
+                    <button
+                      onClick={() => handleBatchGenerateSMPClasses([7, 8, 9])}
+                      className="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-200"
+                    >
+                      Inisialisasi 33 Kelas SMP Otomatis
+                    </button>
+                    <button
+                      onClick={() => { setClassGradeFilter('all'); setClassSearchQuery(''); }}
+                      className="text-xs font-bold text-slate-600 hover:underline px-2 py-1.5"
+                    >
+                      Reset Filter
+                    </button>
+                  </div>
                 </div>
               );
-            })}
-          </div>
+            }
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {filteredClasses.map(c => {
+                  const wali = users.find(u => u.id === c.waliKelasId);
+                  const classStudents = users.filter(u => u.role === 'siswa' && u.kelasId === c.id);
+
+                  return (
+                    <div
+                      key={c.id}
+                      className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-purple-300 hover:shadow-xs transition-all flex flex-col justify-between space-y-2.5 text-xs"
+                    >
+                      {/* Top Row: Name and Grade Badge */}
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div>
+                          <span className="font-extrabold text-sm text-slate-900 block tracking-tight">
+                            {c.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            TA: {c.academicYear || '2026/2027'}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+                          c.grade === 7 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                          c.grade === 8 ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                          'bg-purple-100 text-purple-800 border border-purple-200'
+                        }`}>
+                          Tingkat {c.grade}
+                        </span>
+                      </div>
+
+                      {/* Wali Kelas and Student Count */}
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span className="text-slate-500">Wali:</span>
+                          <span className={`font-bold truncate ${wali ? 'text-slate-800' : 'text-slate-400 italic'}`}>
+                            {wali ? wali.fullName : 'Belum Ditentukan'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <GraduationCap className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span className="text-slate-500">Siswa Terdaftar:</span>
+                          <span className="font-bold text-slate-900">
+                            {classStudents.length} Siswa
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                        <button
+                          onClick={() => handleOpenEditClass(c)}
+                          className="px-2.5 py-1 text-slate-700 hover:text-purple-700 hover:bg-purple-50 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          onClick={() => setClassToDelete(c)}
+                          className="px-2 py-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus Rombel Kelas"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1024,8 +1864,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             Audit Log Aktivitas ({auditLogs.length})
           </h3>
           <div className="divide-y divide-slate-100">
-            {auditLogs.slice(0, 10).map(log => (
-              <div key={log.id} className="py-2 space-y-0.5">
+            {auditLogs.slice(0, 10).map((log, idx) => (
+              <div key={`${log.id || 'log'}-${idx}`} className="py-2 space-y-0.5">
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                   <span>{new Date(log.timestamp).toLocaleTimeString('id-ID')}</span>
                   <span className="font-mono text-purple-700 font-bold">{log.action}</span>
@@ -1038,63 +1878,390 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* Modal Add / Edit User */}
+      {/* Modal Add / Edit User (Siswa, Guru, Orang Tua, Admin) */}
       {showUserModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-w-md w-full overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-5 duration-150">
-            <div className="p-4 bg-purple-700 text-white flex items-center justify-between">
-              <h3 className="font-bold text-sm">{editingUser ? 'Edit Pengguna' : 'Tambah Pengguna'}</h3>
-              <button onClick={() => setShowUserModal(false)} className="text-white">✕</button>
-            </div>
-            <form onSubmit={handleSaveUser} className="p-4 space-y-3 text-xs max-h-[80vh] overflow-y-auto">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Nama Lengkap:</label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className={`p-4 sm:p-5 text-white flex items-center justify-between shrink-0 ${
+              role === 'siswa' ? 'bg-gradient-to-r from-emerald-600 to-teal-700' :
+              role === 'guru' ? 'bg-gradient-to-r from-blue-600 to-indigo-700' :
+              role === 'orang_tua' ? 'bg-gradient-to-r from-amber-600 to-orange-700' :
+              'bg-gradient-to-r from-purple-700 to-indigo-900'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
+                  {role === 'siswa' && <GraduationCap className="w-5 h-5 text-white" />}
+                  {role === 'guru' && <UserCheck className="w-5 h-5 text-white" />}
+                  {role === 'orang_tua' && <HeartHandshake className="w-5 h-5 text-white" />}
+                  {role === 'admin' && <Shield className="w-5 h-5 text-white" />}
+                </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Username:</label>
+                  <h3 className="font-extrabold text-sm sm:text-base">
+                    {editingUser
+                      ? `Edit Data ${role === 'siswa' ? 'Siswa' : role === 'guru' ? 'Guru' : role === 'orang_tua' ? 'Orang Tua' : 'Admin'}`
+                      : `Tambah Data ${role === 'siswa' ? 'Siswa Baru' : role === 'guru' ? 'Guru / Pembina Baru' : role === 'orang_tua' ? 'Orang Tua / Wali Baru' : 'Admin Baru'}`}
+                  </h3>
+                  <span className="text-[11px] text-white/80 block">
+                    {editingUser ? `ID: ${editingUser.id}` : 'Isi formulir data di bawah ini secara lengkap'}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUserModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Role Selector Tabs (Only when creating new user) */}
+            {!editingUser && (
+              <div className="p-3 bg-slate-50 border-b border-slate-200 shrink-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">
+                  Pilih Jenis Peran Pengguna:
+                </span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setRole('siswa'); setFormError(''); }}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                      role === 'siswa'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>Siswa</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setRole('guru'); setFormError(''); }}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                      role === 'guru'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Guru</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setRole('orang_tua'); setFormError(''); }}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                      role === 'orang_tua'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <HeartHandshake className="w-3.5 h-3.5" />
+                    <span>Orang Tua</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setRole('admin'); setFormError(''); }}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
+                      role === 'admin'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Admin</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSaveUser} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              {/* SECTION 1: ROLE-SPECIFIC FIELDS */}
+              <div className="space-y-3">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block border-b border-slate-100 pb-1">
+                  1. Informasi Pokok & Identitas
+                </span>
+
+                {/* Full Name */}
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1">
+                    {role === 'siswa' ? 'Nama Lengkap Siswa *' :
+                     role === 'guru' ? 'Nama Lengkap & Gelar Guru *' :
+                     role === 'orang_tua' ? 'Nama Lengkap Orang Tua / Wali *' : 'Nama Lengkap Administrator *'}
+                  </label>
                   <input
                     type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 p-2 bg-slate-50"
+                    placeholder={
+                      role === 'siswa' ? 'Contoh: Bintang Pratama' :
+                      role === 'guru' ? 'Contoh: Dewi Ratnasari, S.Pd.' :
+                      role === 'orang_tua' ? 'Contoh: Bambang Supriyanto' : 'Contoh: Administrator Sekolah'
+                    }
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all font-medium"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Peran:</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as Role)}
-                    className="w-full rounded-xl border border-slate-300 p-2 bg-slate-50 font-bold"
-                  >
-                    <option value="siswa">Siswa</option>
-                    <option value="guru">Guru</option>
-                    <option value="orang_tua">Orang Tua</option>
-                    <option value="admin">Admin</option>
-                  </select>
+
+                {/* SISWA SPECIFIC FIELDS */}
+                {role === 'siswa' && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-800 mb-1">
+                          NISN (Nomor Induk Siswa):
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={12}
+                          placeholder="Contoh: 0098765432"
+                          value={nisnNip}
+                          onChange={(e) => setNisnNip(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-800 mb-1">
+                          Pilih Rombel / Kelas:
+                        </label>
+                        <select
+                          value={kelasId}
+                          onChange={(e) => setKelasId(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-bold text-slate-800"
+                        >
+                          {classes.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        Guru Pembina / Wali Pendamping:
+                      </label>
+                      <select
+                        value={assignedGuruId}
+                        onChange={(e) => setAssignedGuruId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-medium text-slate-800"
+                      >
+                        <option value="">-- Pilih Guru Pembina --</option>
+                        {users.filter(u => u.role === 'guru').map(g => (
+                          <option key={g.id} value={g.id}>
+                            {g.fullName} {g.nip ? `(NIP: ${g.nip})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[10px] text-slate-400 block mt-1">
+                        Guru pembina bertanggung jawab atas verifikasi jurnal dan apresiasi kebiasaan siswa ini.
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {/* GURU SPECIFIC FIELDS */}
+                {role === 'guru' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        NIP / NUPTK Pegawai:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: 19850312 201001 2 021"
+                        value={nisnNip}
+                        onChange={(e) => setNisnNip(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        Penugasan Wali Kelas:
+                      </label>
+                      <select
+                        value={kelasId}
+                        onChange={(e) => setKelasId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-bold text-slate-800"
+                      >
+                        <option value="">Bukan Wali Kelas (Guru Mapel)</option>
+                        {classes.map(c => (
+                          <option key={c.id} value={c.id}>Wali Kelas {c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* ORANG TUA SPECIFIC FIELDS */}
+                {role === 'orang_tua' && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-800 mb-1">
+                          Hubungan Keluarga:
+                        </label>
+                        <select
+                          value={relationship}
+                          onChange={(e) => setRelationship(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-bold text-slate-800"
+                        >
+                          <option value="Ayah Kandung">Ayah Kandung</option>
+                          <option value="Ibu Kandung">Ibu Kandung</option>
+                          <option value="Wali Murid">Wali Murid</option>
+                          <option value="Keluarga / Kerabat">Keluarga / Kerabat</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-800 mb-1">
+                          Hubungkan ke Siswa / Anak *:
+                        </label>
+                        <select
+                          value={selectedChildId}
+                          onChange={(e) => setSelectedChildId(e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-bold text-slate-800"
+                          required
+                        >
+                          <option value="">-- Pilih Anak Terdaftar --</option>
+                          {users.filter(u => u.role === 'siswa').map(s => {
+                            const sClass = classes.find(c => c.id === s.kelasId);
+                            return (
+                              <option key={s.id} value={s.id}>
+                                {s.fullName} {sClass ? `(${sClass.name})` : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 block">
+                      💡 Akun orang tua ini akan otomatis memiliki hak akses memantau capaian 7 kebiasaan dan memberi dukungan untuk anak yang dipilih.
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* SECTION 2: LOGIN CREDENTIALS */}
+              <div className="space-y-3 pt-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block border-b border-slate-100 pb-1">
+                  2. Kredensial Masuk Akun
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-slate-800">
+                        Username Login *:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAutoGenerateUsername}
+                        className="text-[10px] font-bold text-purple-600 hover:text-purple-800 hover:underline flex items-center gap-0.5"
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span>Buat Otomatis</span>
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder={role === 'siswa' ? 'siswa.bintang' : role === 'guru' ? 'guru.dewi' : role === 'orang_tua' ? 'ortu.bintang' : 'admin.utama'}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-mono text-slate-800 font-bold focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-800 mb-1">
+                      {editingUser ? 'Kata Sandi Baru (Opsional):' : 'Kata Sandi Awal *:'}
+                    </label>
+                    <input
+                      type="text"
+                      value={userPassword}
+                      onChange={(e) => setUserPassword(e.target.value)}
+                      placeholder={editingUser ? 'Kosongkan jika tidak diubah' : 'password123'}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-mono focus:bg-white"
+                    />
+                    <span className="text-[10px] text-slate-400 block mt-1">
+                      {editingUser ? 'Biarkan kosong untuk mempertahankan kata sandi saat ini' : 'Bawaan standar: password123'}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="pt-2 flex justify-end gap-2">
+
+              {/* SECTION 3: CONTACT & COMMUNICATION */}
+              <div className="space-y-3 pt-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block border-b border-slate-100 pb-1">
+                  3. Kontak & Komunikasi (Opsional)
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-800 mb-1 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-slate-500" />
+                      <span>No. WhatsApp / HP:</span>
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="081234567890"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-800 mb-1 flex items-center gap-1">
+                      <Mail className="w-3 h-3 text-slate-500" />
+                      <span>Alamat Email:</span>
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="contoh@sekolah.sch.id"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowUserModal(false)}
-                  className="px-3 py-2 text-slate-600 font-semibold"
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl"
+                  className={`px-5 py-2.5 rounded-xl text-white font-extrabold shadow-sm active:scale-95 transition-all flex items-center gap-1.5 ${
+                    role === 'siswa' ? 'bg-emerald-600 hover:bg-emerald-700' :
+                    role === 'guru' ? 'bg-blue-600 hover:bg-blue-700' :
+                    role === 'orang_tua' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-purple-600 hover:bg-purple-700'
+                  }`}
                 >
-                  Simpan
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {editingUser
+                      ? 'Simpan Perubahan'
+                      : role === 'siswa'
+                      ? 'Daftarkan Siswa'
+                      : role === 'guru'
+                      ? 'Daftarkan Guru'
+                      : role === 'orang_tua'
+                      ? 'Daftarkan Orang Tua'
+                      : 'Simpan Pengguna'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -1102,24 +2269,282 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
+      {/* Modal Konfirmasi Hapus Pengguna */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3 text-xs border border-slate-200">
+            <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-bold text-sm text-slate-900">Hapus Data Pengguna?</h3>
+              <p className="text-slate-600">
+                Anda akan menghapus akun <strong>{userToDelete.fullName}</strong> (@{userToDelete.username}) yang berperan sebagai <strong>{userToDelete.role.replace('_', ' ')}</strong>.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setUserToDelete(null)}
+                className="flex-1 py-2 rounded-xl border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-95 transition-all"
+              >
+                Hapus Akun
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Add / Edit Class (Kelas 7.1-7.11, 8.1-8.11, 9.1-9.11) */}
+      {showClassModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 sm:p-5 text-white bg-gradient-to-r from-purple-700 via-indigo-700 to-blue-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
+                  <Layers className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base">
+                    {editingClass ? 'Edit Rombel Kelas' : 'Tambah Rombel Kelas SMP Baru'}
+                  </h3>
+                  <span className="text-[11px] text-purple-200 block">
+                    {editingClass ? `ID: ${editingClass.id}` : 'Format penamaan kelas: 7.1 s/d 7.11, 8.1 s/d 8.11, 9.1 s/d 9.11'}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowClassModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveClass} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
+              {classFormError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{classFormError}</span>
+                </div>
+              )}
+
+              {/* Tingkat Selection */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5">
+                  Tingkat / Jenjang SMP:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[7, 8, 9].map(grade => (
+                    <button
+                      key={grade}
+                      type="button"
+                      onClick={() => {
+                        setClassGradeInput(grade);
+                        if (!editingClass) {
+                          const existingInGrade = classes.filter(c => c.grade === grade);
+                          const nextNum = existingInGrade.length < 11 ? existingInGrade.length + 1 : 1;
+                          setClassNameInput(`Kelas ${grade}.${nextNum}`);
+                        }
+                      }}
+                      className={`py-2 px-3 rounded-xl font-extrabold text-xs transition-all ${
+                        classGradeInput === grade
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Tingkat {grade}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Preset Selector for 7.1-7.11, 8.1-8.11, 9.1-9.11 */}
+              {!editingClass && (
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 block mb-1">
+                    Pilih Cepat Nomor Kelas ({classGradeInput}.1 s/d {classGradeInput}.11):
+                  </span>
+                  <div className="grid grid-cols-6 sm:grid-cols-11 gap-1">
+                    {Array.from({ length: 11 }, (_, i) => i + 1).map(num => {
+                      const candidateName = `Kelas ${classGradeInput}.${num}`;
+                      const isTaken = classes.some(c => c.name.toLowerCase() === candidateName.toLowerCase());
+                      const isSelected = classNameInput === candidateName;
+
+                      return (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setClassNameInput(candidateName)}
+                          className={`py-1 text-center font-bold text-[11px] rounded-lg border transition-all ${
+                            isSelected
+                              ? 'bg-purple-600 text-white border-purple-600'
+                              : isTaken
+                              ? 'bg-slate-100 text-slate-400 border-slate-200 line-through'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-purple-50 hover:border-purple-300'
+                          }`}
+                          title={isTaken ? `${candidateName} sudah terdaftar` : `Pilih ${candidateName}`}
+                        >
+                          {classGradeInput}.{num}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Nama Kelas */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Nama Kelas *:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Kelas 7.1 atau 7.1"
+                  value={classNameInput}
+                  onChange={(e) => setClassNameInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-bold text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+
+              {/* Wali Kelas */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Wali Kelas Pembina (Opsional):
+                </label>
+                <select
+                  value={classWaliInput}
+                  onChange={(e) => setClassWaliInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-medium text-slate-800"
+                >
+                  <option value="">-- Belum Ditentukan (Guru Mapel / Belum Ada Wali) --</option>
+                  {users.filter(u => u.role === 'guru').map(g => (
+                    <option key={g.id} value={g.id}>
+                      {g.fullName} {g.nip ? `(NIP: ${g.nip})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400 block mt-1">
+                  Guru yang dipilih akan otomatis menjadi pembina dan memantau jurnal siswa di kelas ini.
+                </span>
+              </div>
+
+              {/* Tahun Ajaran */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Tahun Ajaran:
+                </label>
+                <input
+                  type="text"
+                  placeholder="2026/2027"
+                  value={classYearInput}
+                  onChange={(e) => setClassYearInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-mono"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowClassModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-extrabold shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{editingClass ? 'Simpan Perubahan' : 'Simpan Kelas Baru'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Kelas */}
+      {classToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3 text-xs border border-slate-200">
+            <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-bold text-sm text-slate-900">Hapus Rombel Kelas?</h3>
+              <p className="text-slate-600">
+                Anda akan menghapus data <strong>{classToDelete.name}</strong> (Tingkat {classToDelete.grade}).
+              </p>
+              {users.some(u => u.role === 'siswa' && u.kelasId === classToDelete.id) && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] text-left mt-2">
+                  ⚠️ Peringatan: Terdapat siswa yang saat ini terdaftar di kelas ini. Anda tetap dapat menghapusnya dan memindahkan siswa ke rombel lain.
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setClassToDelete(null)}
+                className="flex-1 py-2 rounded-xl border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleDeleteClass}
+                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs active:scale-95 transition-all"
+              >
+                Hapus Kelas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Reset Password */}
       {showPasswordModal && targetResetUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-4 space-y-3 text-xs">
-            <h3 className="font-bold text-sm text-slate-900">Reset Sandi: {targetResetUser.fullName}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-4 space-y-3 text-xs border border-slate-200">
+            <div className="flex items-center gap-2 text-slate-900 pb-2 border-b border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                <Key className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm">Reset Kata Sandi</h3>
+                <span className="text-[11px] text-slate-500 font-mono">@{targetResetUser.username} ({targetResetUser.fullName})</span>
+              </div>
+            </div>
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Sandi Baru:</label>
+              <label className="block font-bold text-slate-700 mb-1">Kata Sandi Baru:</label>
               <input
                 type="text"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 p-2 bg-slate-50 font-mono"
+                className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 font-mono font-bold"
                 required
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowPasswordModal(false)} className="px-3 py-1.5 text-slate-600">Batal</button>
-              <button onClick={handleExecuteResetPassword} className="px-3 py-1.5 bg-amber-600 text-white font-bold rounded-lg">Simpan</button>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-bold hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleExecuteResetPassword}
+                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-2xs active:scale-95 transition-all"
+              >
+                Simpan Sandi
+              </button>
             </div>
           </div>
         </div>
