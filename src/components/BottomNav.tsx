@@ -33,8 +33,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         return [
           { id: 'dashboard', label: '7 Kebiasaan', icon: Home },
           { id: 'my_journals', label: 'Riwayat', icon: ListTodo },
-          { id: 'badges', label: 'Lencana', icon: Award },
-          { id: 'reports', label: 'Rapor', icon: FileText }
+          { id: 'badges', label: 'Lencana', icon: Award }
         ];
       case 'guru':
         return [

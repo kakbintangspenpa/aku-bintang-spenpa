@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, JournalEntry, HabitDefinition, AppreciationBadge } from '../types';
 import { TUJUH_KEBIASAAN } from '../data/constants';
 import { HabitCard } from '../components/HabitCard';
@@ -8,12 +8,14 @@ import {
   Award,
   CheckCircle2,
   Calendar,
+  Clock,
   Heart,
   PlusCircle,
   Image as ImageIcon,
   ArrowRight,
   Star
 } from 'lucide-react';
+
 import { TrophyShelf } from '../components/TrophyShelf';
 
 interface SiswaDashboardProps {
@@ -35,9 +37,53 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
   activeSubTab = 'dashboard',
   onSelectTab
 }) => {
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const hariIndo = currentDateTime.toLocaleDateString('id-ID', { weekday: 'long' });
+  const tanggalIndo = currentDateTime.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+  const jamIndo = currentDateTime.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).replace(/\./g, ':');
+
+  const getDeviceTimezoneAbbr = (): string => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const offset = new Date().getTimezoneOffset();
+      if (offset === -480 || tz.includes('Makassar') || tz.includes('Bali') || tz.includes('Ujung_Pandang') || tz.includes('Singapore') || tz.includes('Kuala_Lumpur') || tz.includes('Manila')) {
+        return 'WITA';
+      }
+      if (offset === -540 || tz.includes('Jayapura')) {
+        return 'WIT';
+      }
+      if (offset === -420 || tz.includes('Jakarta') || tz.includes('Pontianak')) {
+        return 'WIB';
+      }
+      if (offset <= -450 && offset >= -510) {
+        return 'WITA';
+      }
+      return 'WITA';
+    } catch {
+      return 'WITA';
+    }
+  };
+
+  const zonaWaktu = getDeviceTimezoneAbbr();
+  const selectedDate = currentDateTime.toISOString().split('T')[0];
+
+
 
   const studentJournals = journals.filter(j => j.siswaId === currentUser.id);
   const studentBadges = badges.filter(b => b.siswaId === currentUser.id);
@@ -155,58 +201,86 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
         </div>
       )}
 
-      {/* 2. Compact Date Selector & Quick Add Button */}
+      {/* 2. Tampilan Live Hari, Tanggal, dan Jam (Icon Jam & Waktu Saja Tanpa Blok Kotak) */}
       {isDashboardTab && (
-        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-3 sm:p-4 flex items-center justify-between gap-2 shadow-2xs">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-red-600 shrink-0" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="text-xs font-bold rounded-lg border border-slate-200 px-2.5 py-1.5 bg-slate-50 focus:bg-white focus:outline-hidden"
-            />
-          </div>
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs">
+          <div className="flex items-center justify-between gap-3">
+            {/* Hari & Tanggal Lengkap */}
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-red-600 to-rose-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow-xs" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-red-700 bg-red-100/80 border border-red-200/70 px-1.5 py-0.5 rounded-full shrink-0">
+                    Hari Ini
+                  </span>
+                  <span className="text-xs sm:text-base font-extrabold text-slate-900 capitalize truncate">
+                    {hariIndo}
+                  </span>
+                </div>
+                <p className="text-[11px] sm:text-sm font-bold text-slate-600 mt-0.5 truncate">
+                  {tanggalIndo}
+                </p>
+              </div>
+            </div>
 
-          <button
-            onClick={() => onOpenJournalModal()}
-            className="px-3.5 py-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 shrink-0"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Catat Aktivitas</span>
-            <span className="sm:hidden">Catat</span>
-          </button>
+            {/* Icon Jam dan Waktu Saja (Tanpa Blok Kotak, dengan Penanda WITA / Lokasi Device) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 shrink-0" />
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-sm sm:text-lg font-black text-slate-900 tracking-tight">
+                  {jamIndo}
+                </span>
+                <span className="text-xs sm:text-sm font-black text-emerald-600 uppercase">
+                  {zonaWaktu}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
+
 
       {/* 3. The 7 Habits List / Grid */}
       {isDashboardTab && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-              Daftar 7 Kebiasaan Hari Ini
-            </h2>
-            <span className="text-[11px] font-bold text-slate-500">
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
+                Daftar 7 Kebiasaan Hari Ini
+              </h2>
+              <p className="text-[10px] sm:text-xs font-medium text-slate-500 mt-0.5 truncate">
+                Tekan kartu kebiasaan untuk mengisi jurnal
+              </p>
+            </div>
+            <span className="text-[11px] sm:text-xs font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-full shrink-0 shadow-2xs whitespace-nowrap">
               {completedTodayCount} dari 7 Selesai
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+
+          <div className="flex flex-wrap justify-center gap-2.5 sm:gap-3.5">
             {TUJUH_KEBIASAAN.map((habit) => {
               const entry = selectedDateJournals.find(j => j.habitId === habit.id);
               return (
-                <HabitCard
+                <div
                   key={habit.id}
-                  habit={habit}
-                  todayJournal={entry}
-                  onOpenJournalModal={onOpenJournalModal}
-                  onViewPhoto={onViewPhoto}
-                />
+                  className="w-[calc(50%-6px)] sm:w-[calc(25%-11px)] lg:w-[calc(14.28%-12px)] flex"
+                >
+                  <HabitCard
+                    habit={habit}
+                    todayJournal={entry}
+                    onOpenJournalModal={onOpenJournalModal}
+                    onViewPhoto={onViewPhoto}
+                  />
+                </div>
               );
             })}
           </div>
         </div>
       )}
+
 
       {/* Teaser Lemari Rak Piala pada Dashboard Siswa */}
       {isDashboardTab && studentBadges.length > 0 && (

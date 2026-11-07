@@ -1,5 +1,86 @@
 import { HabitDefinition, HabitId } from '../types';
 
+export interface ContohIsian {
+  activity: string;
+  reflection: string;
+  alternatives: string[];
+  tips: string;
+}
+
+export const CONTOH_ISIAN_KEBIASAAN: Record<HabitId, ContohIsian> = {
+  bangun_pagi_ibadah: {
+    activity: 'Bangun pukul 04.45 WIB, merapikan tempat tidur dan melipat selimut secara mandiri, lalu berwudhu untuk sholat Subuh berjamaah bersama keluarga di masjid.',
+    reflection: 'Badan terasa segar, pikiran tenang, dan lebih siap menyambut kegiatan sekolah hari ini.',
+    alternatives: [
+      'Bangun pukul 04.45 WIB, merapikan kasur sendiri, lalu menunaikan ibadah Subuh berjamaah di masjid.',
+      'Bangun tepat pukul 05.00 WIB, berdoa mengucap syukur bersama keluarga, dan minum segelas air hangat.',
+      'Bangun pukul 04.30 WIB tanpa perlu dibangunkan orang tua, merapikan kamar, dan beribadah pagi dengan khusyuk.'
+    ],
+    tips: 'Sebutkan jam bangun tidur, kerapian kamar tidur, dan ibadah atau doa pagi yang kamu lakukan.'
+  },
+  berolahraga: {
+    activity: 'Melakukan senam peregangan dan lari santai (jogging) keliling kompleks rumah selama 20 menit bersama adik, dilanjutkan minum air putih yang cukup.',
+    reflection: 'Otot terasa relaks, tubuh berkeringat sehat, dan rasa kantuk langsung hilang.',
+    alternatives: [
+      'Lari santai (jogging) pagi selama 20 menit dan senam pemanasan di halaman rumah.',
+      'Bermain bulu tangkis santai di sore hari selama 30 menit bersama teman sebaya di lapangan dekat rumah.',
+      'Mengikuti senam kesegaran jasmani di sekolah dan bersepeda santai selama 20 menit.'
+    ],
+    tips: 'Sebutkan jenis olahraga fisik, durasi waktu (misal 15-30 menit), dan manfaat yang dirasakan.'
+  },
+  makan_sehat: {
+    activity: 'Sarapan pagi dengan menu seimbang: sepiring nasi putih, sayur bening bayam dan jagung, sebutir telur rebus, tempe goreng, dan minum 2 gelas air putih hangat.',
+    reflection: 'Perut terasa kenyang dan nyaman, konsentrasi belajar di kelas menjadi lebih maksimal tanpa tergoda jajan sembarangan.',
+    alternatives: [
+      'Sarapan nasi, sayur sop wortel kentang, sepotong ikan bakar, buah pisang segar, dan air putih hangat.',
+      'Membawa bekal sehat dari rumah berisi nasi, tumis buncis tempe, telur dadar, dan sebutir apel manis.',
+      'Makan siang bergizi seimbang dengan porsi Isi Piringku dan tidak membeli jajanan berpengawet atau minuman manis berlebih.'
+    ],
+    tips: 'Tuliskan jenis makanan bergizi yang kamu konsumsi (sayur, lauk protein, buah segar, dan air putih).'
+  },
+  gemar_membaca: {
+    activity: 'Membaca buku biografi Ki Hajar Dewantara sebanyak 15 halaman di ruang belajar rumah, lalu mencatat 3 kosakata baru dan pesan inspiratifnya.',
+    reflection: 'Mendapat wawasan sejarah baru dan semakin termotivasi untuk rajin belajar demi meraih cita-cita masa depan.',
+    alternatives: [
+      'Membaca novel inspiratif anak muda sebanyak 20 halaman di pojok baca perpustakaan sekolah.',
+      'Membaca artikel ensiklopedia sains tentang sistem tata surya selama 25 menit dan merangkum intisarinya.',
+      'Membaca buku pelajaran matematika dan menyelesaikan latihan soal secara mandiri selama 30 menit.'
+    ],
+    tips: 'Sebutkan judul buku atau materi yang kamu baca, jumlah halaman/waktu membaca, serta pelajaran berharga yang diperoleh.'
+  },
+  bermasyarakat: {
+    activity: 'Membantu ibu merapikan meja makan setelah sarapan dan ikut menyapu dedaunan gugur di jalan depan rumah bersama tetangga sekitar.',
+    reflection: 'Senang dan bangga karena bisa meringankan pekerjaan orang tua serta ikut menjaga kebersihan lingkungan bersama.',
+    alternatives: [
+      'Membantu teman sekelas yang kesulitan memahami materi pelajaran saat jam istirahat.',
+      'Menyapa bapak satpam dan bapak/ibu guru dengan salam ramah serta membuang sampah plastik pada tempat pemilahan.',
+      'Membantu adik memahami tugas sekolah dan merapikan buku-buku di ruang keluarga.'
+    ],
+    tips: 'Tuliskan tindakan kebaikan, bantuan sosial, atau sopan santun yang kamu berikan kepada keluarga, teman, atau tetangga.'
+  },
+  istirahat_tepat: {
+    activity: 'Mematikan layar HP pukul 21.00 WIB, mencuci kaki, menggosok gigi, membaca doa sebelum tidur, dan mulai tidur tepat pukul 21.15 WIB.',
+    reflection: 'Tidur nyenyak selama 7,5 jam tanpa terbangun tengah malam, saat bangun pagi terasa berenergi dan bugar.',
+    alternatives: [
+      'Tidur malam tepat pukul 21.00 WIB setelah menjauhkan gawai dari tempat tidur 30 menit sebelumnya.',
+      'Tidur tepat waktu pukul 21.30 WIB dengan lampu kamar redup dan suasana tenang untuk menjaga kesehatan mata.',
+      'Disiplin tidur malam pukul 21.00 WIB agar otak dan tubuh beristirahat optimal untuk aktivitas sekolah esok hari.'
+    ],
+    tips: 'Sebutkan jam mematikan gadget, jam mulai tidur, dan persiapan sehat sebelum tidur.'
+  },
+  kedisiplinan_umum: {
+    activity: 'Menyiapkan seragam rapi dan menyusun buku pelajaran sesuai jadwal sejak malam hari, serta hadir di sekolah 15 menit sebelum bel apel pagi berbunyi.',
+    reflection: 'Merasa percaya diri, tidak tergesa-gesa, dan dapat mengikuti pembelajaran hari ini dengan tenang dan tertib.',
+    alternatives: [
+      'Menyelesaikan tugas pekerjaan rumah (PR) tepat waktu tanpa menunda-nunda dan merapikan kembali alat tulis ke tas.',
+      'Hadir di kelas pukul 06.45 WIB dengan seragam dan atribut lengkap serta mematuhi tata tertib kelas.',
+      'Merapikan sepeda di tempat parkir sekolah secara teratur dan menjaga barang perlengkapan pribadi agar tidak hilang.'
+    ],
+    tips: 'Tuliskan kedisiplinan yang kamu terapkan, seperti ketepatan waktu datang, seragam lengkap, atau penyelesaian tugas.'
+  }
+};
+
+
 export const TUJUH_KEBIASAAN: HabitDefinition[] = [
   {
     id: 'bangun_pagi_ibadah',

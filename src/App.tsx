@@ -130,7 +130,7 @@ export default function App() {
   const pendingCount = journals.filter(j => !j.guruVerified).length;
 
   const renderMainContent = () => {
-    if (currentTab === 'reports') {
+    if (currentTab === 'reports' && currentUser.role !== 'siswa') {
       return (
         <LaporanView
           currentUser={currentUser}

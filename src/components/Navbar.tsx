@@ -62,8 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         return [
           { id: 'dashboard', label: '7 Kebiasaan' },
           { id: 'my_journals', label: 'Riwayat' },
-          { id: 'badges', label: 'Lencana' },
-          { id: 'reports', label: 'Rapor' }
+          { id: 'badges', label: 'Lencana' }
         ];
       case 'orang_tua':
         return [

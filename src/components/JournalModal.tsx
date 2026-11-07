@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { HabitDefinition, JournalEntry, HabitId, User } from '../types';
-import { TUJUH_KEBIASAAN } from '../data/constants';
+import { TUJUH_KEBIASAAN, CONTOH_ISIAN_KEBIASAAN } from '../data/constants';
 import { HabitIcon } from './HabitIcon';
+
 import { storageService } from '../services/storageService';
 import {
   X,
@@ -36,13 +37,45 @@ export const JournalModal: React.FC<JournalModalProps> = ({
   existingEntry,
   onSaved
 }) => {
+  const getDeviceTimezoneAbbr = (): string => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const offset = new Date().getTimezoneOffset();
+      if (offset === -480 || tz.includes('Makassar') || tz.includes('Bali') || tz.includes('Ujung_Pandang') || tz.includes('Singapore') || tz.includes('Kuala_Lumpur') || tz.includes('Manila')) {
+        return 'WITA';
+      }
+      if (offset === -540 || tz.includes('Jayapura')) {
+        return 'WIT';
+      }
+      if (offset === -420 || tz.includes('Jakarta') || tz.includes('Pontianak')) {
+        return 'WIB';
+      }
+      if (offset <= -450 && offset >= -510) {
+        return 'WITA';
+      }
+      return 'WITA';
+    } catch {
+      return 'WITA';
+    }
+  };
+
+  const getAutoCurrentTime = (): string => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm} ${getDeviceTimezoneAbbr()}`;
+  };
+
+
+  const getAutoCurrentDate = (): string => {
+    return new Date().toISOString().split('T')[0];
+  };
+
   const [habitId, setHabitId] = useState<HabitId>(
     selectedHabit?.id || 'bangun_pagi_ibadah'
   );
-  const [date, setDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [time, setTime] = useState<string>('06:00 WIB');
+  const [date, setDate] = useState<string>(getAutoCurrentDate());
+  const [time, setTime] = useState<string>(getAutoCurrentTime());
   const [description, setDescription] = useState<string>('');
   const [reflection, setReflection] = useState<string>('');
   const [status, setStatus] = useState<'Sudah Dilaksanakan' | 'Belum Dilaksanakan'>('Sudah Dilaksanakan');
@@ -54,8 +87,8 @@ export const JournalModal: React.FC<JournalModalProps> = ({
   useEffect(() => {
     if (existingEntry) {
       setHabitId(existingEntry.habitId);
-      setDate(existingEntry.date);
-      setTime(existingEntry.time || '');
+      setDate(existingEntry.date || getAutoCurrentDate());
+      setTime(existingEntry.time || getAutoCurrentTime());
       setDescription(existingEntry.activityDescription);
       setReflection(existingEntry.reflection || '');
       setStatus(existingEntry.status as any || 'Sudah Dilaksanakan');
@@ -63,8 +96,8 @@ export const JournalModal: React.FC<JournalModalProps> = ({
       setPhotoFileName(existingEntry.photoFileName || '');
     } else if (selectedHabit) {
       setHabitId(selectedHabit.id);
-      setDate(new Date().toISOString().split('T')[0]);
-      setTime(selectedHabit.suggestedTimes?.split('atau')[0]?.trim() || '06:00 WIB');
+      setDate(getAutoCurrentDate());
+      setTime(getAutoCurrentTime());
       setDescription('');
       setReflection('');
       setStatus('Sudah Dilaksanakan');
@@ -73,6 +106,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
     }
     setErrorMsg('');
   }, [isOpen, selectedHabit, existingEntry]);
+
 
   if (!isOpen) return null;
 
@@ -209,23 +243,6 @@ export const JournalModal: React.FC<JournalModalProps> = ({
             </div>
           )}
 
-          {/* Habit Selection Dropdown */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Pilih Kebiasaan Hebat:
-            </label>
-            <select
-              value={habitId}
-              onChange={(e) => setHabitId(e.target.value as HabitId)}
-              className="w-full text-xs sm:text-sm font-semibold rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:outline-hidden"
-            >
-              {TUJUH_KEBIASAAN.map((h) => (
-                <option key={h.id} value={h.id}>
-                  #{h.number} - {h.title}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Status Selection - Big Touch Targets for Mobile */}
           <div>
@@ -260,64 +277,173 @@ export const JournalModal: React.FC<JournalModalProps> = ({
             </div>
           </div>
 
-          {/* Activity Description */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Apa yang kamu lakukan hari ini? <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              rows={2}
-              placeholder="Contoh: Bangun jam 04.45 lalu sholat subuh berjamaah dan merapikan kamar..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:outline-hidden"
-              required
-            />
-          </div>
+          {/* Interactive Sample Text Box for Students */}
+          {(() => {
+            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi_ibadah'];
+            return (
+              <div className="bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-50/30 border border-amber-200/90 rounded-2xl p-3.5 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Contoh Teks Isian: {currentHabitDef.shortTitle}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDescription(contohData.activity);
+                      if (!reflection) {
+                        setReflection(contohData.reflection);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-2xs transition-all cursor-pointer"
+                    title="Salin contoh teks ini ke kolom isian"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Gunakan Contoh</span>
+                  </button>
+                </div>
 
-          {/* Date & Time Row */}
-          <div className="grid grid-cols-2 gap-2">
+                {/* Primary example quote */}
+                <div className="bg-white/95 rounded-xl p-2.5 border border-amber-200/70 text-xs text-slate-800 leading-relaxed font-medium">
+                  <p className="text-slate-700 italic">
+                    "{contohData.activity}"
+                  </p>
+                </div>
+
+                {/* Alternative sample options */}
+                <div className="space-y-1 pt-1 border-t border-amber-200/50">
+                  <span className="text-[10px] font-extrabold text-amber-900/80 uppercase tracking-wider block">
+                    Pilihan Contoh Kalimat Lainnya:
+                  </span>
+                  <div className="flex flex-col gap-1">
+                    {contohData.alternatives.map((alt, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setDescription(alt)}
+                        className="text-left text-[11px] px-2.5 py-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-700 hover:text-amber-900 border border-amber-200/60 transition-all active:scale-[0.99] font-medium leading-snug flex items-start gap-1.5 group cursor-pointer"
+                        title="Klik untuk memakai kalimat ini"
+                      >
+                        <span className="text-amber-500 font-bold shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                        <span className="line-clamp-2">{alt}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tips */}
+                <div className="text-[10px] text-amber-900/80 pt-0.5 flex items-start gap-1">
+                  <Info className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                  <span><strong>Tips Isian:</strong> {contohData.tips}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Activity Description */}
+          {(() => {
+            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi_ibadah'];
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Kolom Isian Aktivitas: <span className="text-red-500">*</span>
+                  </label>
+                  {description && (
+                    <button
+                      type="button"
+                      onClick={() => setDescription('')}
+                      className="text-[10px] text-slate-400 hover:text-red-600 font-semibold cursor-pointer"
+                    >
+                      Kosongkan Teks
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  rows={3}
+                  placeholder={`Tulis aktivitasmu di sini...\nContoh: ${contohData.activity}`}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 p-3 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:outline-hidden leading-relaxed shadow-2xs"
+                  required
+                />
+              </div>
+            );
+          })()}
+
+          {/* Date & Time Row - Waktu Otomatis */}
+          <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-slate-400" />
-                Tanggal:
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-red-600" />
+                  Tanggal:
+                </label>
+                <span className="text-[10px] font-semibold text-slate-400">Otomatis</span>
+              </div>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full text-xs rounded-xl border border-slate-300 p-2 bg-slate-50"
+                className="w-full text-xs font-bold rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:outline-hidden"
                 required
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-slate-400" />
-                Waktu (Jam):
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                  Waktu (Jam):
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setTime(getAutoCurrentTime())}
+                  className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 cursor-pointer"
+                  title="Perbarui dengan jam saat ini"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Sekarang
+                </button>
+              </div>
               <input
                 type="text"
-                placeholder="05.00 WIB"
+                placeholder="Contoh: 09:45 WIB"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full text-xs rounded-xl border border-slate-300 p-2 bg-slate-50"
+                className="w-full text-xs font-bold rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:outline-hidden"
               />
             </div>
           </div>
 
+
           {/* Reflection */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Refleksi Diri / Perasaan (Opsional):
-            </label>
-            <input
-              type="text"
-              placeholder="Bagaimana perasaanmu setelah melakukannya?"
-              value={reflection}
-              onChange={(e) => setReflection(e.target.value)}
-              className="w-full text-xs rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:outline-hidden"
-            />
-          </div>
+          {(() => {
+            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi_ibadah'];
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Refleksi Diri / Perasaan (Opsional):
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setReflection(contohData.reflection)}
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
+                  >
+                    Gunakan Contoh Refleksi
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder={`Contoh: ${contohData.reflection}`}
+                  value={reflection}
+                  onChange={(e) => setReflection(e.target.value)}
+                  className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:outline-hidden"
+                />
+              </div>
+            );
+          })()}
+
 
           {/* Photo Upload Section */}
           <div>

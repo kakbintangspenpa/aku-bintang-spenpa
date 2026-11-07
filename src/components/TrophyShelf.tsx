@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { toPng } from 'html-to-image';
 import { AppreciationBadge } from '../types';
+
 import {
   Award,
   Sparkles,
   Lock,
   Printer,
+  Download,
+  Loader2,
+  Check,
   X,
   CheckCircle2,
   Calendar,
@@ -13,6 +18,8 @@ import {
   ShieldCheck,
   Star
 } from 'lucide-react';
+
+
 
 interface TrophyShelfProps {
   badges: AppreciationBadge[];
@@ -624,100 +631,212 @@ const CertificateModal: React.FC<CertificateModalProps> = ({
   onClose,
   onPrint
 }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const certificateRef = useRef<HTMLDivElement>(null);
+
+  const handleDownload = async () => {
+    if (!certificateRef.current) {
+      onPrint();
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      await new Promise(resolve => setTimeout(resolve, 80));
+
+      const element = certificateRef.current;
+      const dataUrl = await toPng(element, {
+        quality: 1,
+        pixelRatio: 2, // 2x resolution for crisp 4K / retina export
+        backgroundColor: '#ffffff',
+        skipFonts: true,
+        cacheBust: false
+      });
+
+      const safeStudent = studentName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      const safeBadge = badge.badgeName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      const fileName = `Piagam_${safeBadge}_${safeStudent}.png`;
+
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 3000);
+    } catch (err) {
+      console.error('Gagal mengunduh file, fallback print:', err);
+      onPrint();
+    } finally {
+      setIsDownloading(false);
+    }
+
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-amber-300 animate-in fade-in zoom-in-95 duration-150">
-        {/* Modal Top Action Bar */}
-        <div className="p-3 sm:p-4 bg-stone-900 text-white flex items-center justify-between border-b border-stone-800 print:hidden">
-          <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-amber-400" />
-            <span className="font-bold text-xs sm:text-sm">Piagam Penghargaan Karakter Siswa</span>
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto print:p-0 print:bg-white print:static print:overflow-visible">
+      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full my-auto flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden border-2 border-amber-400 animate-in fade-in zoom-in-95 duration-150 print:max-h-none print:border-none print:shadow-none print:my-0 print:rounded-none">
+        {/* Modal Top Action Bar (Sticky, Never Cut Off) */}
+        <div className="p-3 sm:p-4 bg-stone-900 text-white flex items-center justify-between border-b border-stone-800 shrink-0 sticky top-0 z-20 print:hidden">
+          <div className="flex items-center gap-2 min-w-0">
+            <Award className="w-5 h-5 text-amber-400 shrink-0" />
+            <span className="font-extrabold text-xs sm:text-sm truncate">
+              Piagam Penghargaan Karakter Siswa
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={onPrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-75 disabled:cursor-wait"
+              title="Unduh piagam ke perangkat (Gambar HD)"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Cetak Piagam</span>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Mengunduh...</span>
+                </>
+              ) : downloadSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-950" />
+                  <span>Tersimpan!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Unduh</span>
+                </>
+              )}
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+              className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer active:scale-95"
+              aria-label="Tutup"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* CERTIFICATE BODY (PRINT READY) */}
-        <div className="p-6 sm:p-10 bg-amber-50/40 relative">
+        {/* CERTIFICATE BODY (SCROLLABLE & PRINT READY) */}
+        <div className="overflow-y-auto flex-1 p-3 sm:p-6 md:p-8 bg-amber-50/40 relative print:overflow-visible print:p-0">
           {/* Certificate Ornamental Border */}
-          <div className="p-6 sm:p-8 rounded-2xl border-4 border-amber-600/40 bg-white relative shadow-sm">
+          <div ref={certificateRef} className="p-4 sm:p-6 md:p-7 rounded-2xl border-4 border-amber-600/40 bg-white relative shadow-sm">
             <div className="absolute inset-2 border border-dashed border-amber-500/50 rounded-xl pointer-events-none" />
 
             {/* Header / National Crest Style */}
             <div className="text-center space-y-1 relative z-10">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-400 mx-auto flex items-center justify-center text-white shadow-md mb-2">
-                <Star className="w-7 h-7 fill-white text-white" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-400 mx-auto flex items-center justify-center text-white shadow-md mb-1.5">
+                <Star className="w-6 h-6 sm:w-7 sm:h-7 fill-white text-white" />
               </div>
-              <span className="text-[10px] font-black tracking-widest text-red-600 uppercase">
+              <span className="text-[10px] font-black tracking-widest text-red-600 uppercase block">
                 7 KEBIASAAN ANAK INDONESIA HEBAT
               </span>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
                 PIAGAM PENGHARGAAN KARAKTER
               </h2>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-mono">
                 Nomor: PIAGAM-{badge.id.toUpperCase()}/{badge.date.replace(/-/g, '')}
               </p>
             </div>
 
             {/* Certificate Content */}
-            <div className="text-center my-6 space-y-3 relative z-10">
+            <div className="text-center my-4 sm:my-5 space-y-2.5 relative z-10">
               <p className="text-xs text-slate-600 font-medium">
                 Piagam kehormatan ini dianugerahkan dengan penuh rasa bangga kepada:
               </p>
-              <h3 className="text-2xl sm:text-3xl font-black text-amber-950 underline decoration-amber-400 decoration-2 underline-offset-4 tracking-tight">
+              <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-amber-950 underline decoration-amber-400 decoration-2 underline-offset-4 tracking-tight">
                 {studentName}
               </h3>
-              <p className="text-xs text-slate-600 max-w-md mx-auto">
+              <p className="text-[11px] sm:text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
                 Atas keteladanan, dedikasi, serta konsistensi budi pekerti dalam mewujudkan kebiasaan luhur:
               </p>
 
               {/* Award Title Badge */}
-              <div className="inline-block px-4 py-2 rounded-xl bg-gradient-to-r from-amber-100 via-amber-200 to-amber-100 border border-amber-300 text-amber-950 font-black text-sm sm:text-base shadow-xs">
+              <div className="inline-block px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-amber-100 via-amber-200 to-amber-100 border border-amber-300 text-amber-950 font-black text-xs sm:text-sm md:text-base shadow-xs">
                 ⭐ {badge.badgeName} ⭐
               </div>
 
               {/* Teacher Quote */}
-              <div className="bg-amber-50/80 p-4 rounded-xl border border-amber-200/80 max-w-lg mx-auto text-xs text-slate-700 italic leading-relaxed">
+              <div className="bg-amber-50/80 p-3 sm:p-4 rounded-xl border border-amber-200/80 max-w-lg mx-auto text-xs text-slate-700 italic leading-relaxed">
                 "{badge.message}"
               </div>
             </div>
 
             {/* Signatures & Date Footer */}
-            <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between text-xs relative z-10">
-              <div className="text-left space-y-1">
-                <span className="text-[11px] text-slate-500 block">Diterbitkan pada:</span>
-                <span className="font-bold text-slate-800">{badge.date}</span>
-                <div className="mt-2 inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold border border-emerald-200">
-                  <ShieldCheck className="w-3 h-3" />
-                  Terverifikasi Sistem Sekolah
+            <div className="mt-5 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-200 flex items-center justify-between text-xs relative z-10 gap-2">
+              <div className="text-left space-y-0.5">
+                <span className="text-[10px] sm:text-[11px] text-slate-500 block">Diterbitkan pada:</span>
+                <span className="font-extrabold text-slate-800 text-xs sm:text-sm">{badge.date}</span>
+                <div className="mt-1.5 inline-flex items-center gap-1 text-[9px] sm:text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold border border-emerald-200">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>Terverifikasi Sistem</span>
                 </div>
               </div>
 
-              <div className="text-right space-y-1">
-                <span className="text-[11px] text-slate-500 block">Guru Pembina Karakter,</span>
-                <div className="h-8 flex items-center justify-end font-serif italic text-amber-900 text-sm opacity-80">
+              <div className="text-right space-y-0.5">
+                <span className="text-[10px] sm:text-[11px] text-slate-500 block">Guru Pembina Karakter,</span>
+                <div className="h-7 sm:h-8 flex items-center justify-end font-serif italic text-amber-900 text-xs sm:text-sm opacity-80">
                   Dewi Ratnasari
                 </div>
-                <span className="font-extrabold text-slate-900 underline block">{badge.guruName}</span>
-                <span className="text-[10px] text-slate-400 block">NIP. 19850412 201001 2 023</span>
+                <span className="font-extrabold text-slate-900 underline block text-xs sm:text-sm">{badge.guruName}</span>
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-mono">NIP. 19850412 201001 2 023</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Modal Bottom Footer (Sticky) */}
+        <div className="p-2.5 sm:p-3 bg-stone-900/95 text-white flex items-center justify-between border-t border-stone-800 shrink-0 print:hidden">
+          <span className="text-[10px] text-stone-400 hidden sm:inline">
+            Dokumen resmi tanda kelulusan & apresiasi karakter siswa
+          </span>
+          <div className="flex items-center gap-2 ml-auto w-full sm:w-auto justify-end">
+            <button
+              onClick={onClose}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-stone-300 hover:text-white hover:bg-stone-800 transition-all cursor-pointer"
+            >
+              Tutup
+            </button>
+            <button
+              onClick={onPrint}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all cursor-pointer active:scale-95"
+              title="Cetak via printer"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Cetak</span>
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-75 disabled:cursor-wait"
+              title="Unduh piagam ke perangkat (Gambar HD)"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Mengunduh...</span>
+                </>
+              ) : downloadSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-950" />
+                  <span>Tersimpan!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Unduh</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+
