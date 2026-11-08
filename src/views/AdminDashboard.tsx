@@ -43,7 +43,8 @@ import {
   Phone,
   Mail,
   AlertCircle,
-  X
+  X,
+  Filter
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -105,7 +106,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // User table filter & search
   const [userFilterRole, setUserFilterRole] = useState<'all' | Role>('all');
+  const [userFilterClass, setUserFilterClass] = useState<string>('all');
   const [userSearchQuery, setUserSearchQuery] = useState('');
+
+  // Overview quick student search & class filter
+  const [quickStudentSearch, setQuickStudentSearch] = useState('');
+  const [quickClassFilter, setQuickClassFilter] = useState('all');
 
   // Delete user state
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -1071,6 +1077,165 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
 
+          {/* Quick Search & Filter Bar for Students & Classes (Pencarian Cepat Siswa & Rombel) */}
+          {(() => {
+            const allStudents = users.filter(u => u.role === 'siswa');
+            const filteredQuickStudents = allStudents.filter(s => {
+              if (quickClassFilter !== 'all' && s.kelasId !== quickClassFilter) return false;
+              if (quickStudentSearch.trim()) {
+                const q = quickStudentSearch.toLowerCase().trim();
+                const matchName = s.fullName.toLowerCase().includes(q);
+                const matchNisn = s.nisn?.toLowerCase().includes(q);
+                const matchUser = s.username.toLowerCase().includes(q);
+                const clsName = classes.find(c => c.id === s.kelasId)?.name.toLowerCase();
+                const matchClass = clsName?.includes(q);
+                return matchName || matchNisn || matchUser || matchClass;
+              }
+              return true;
+            });
+
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                      <Search className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900">
+                        Pencarian & Filter Cepat Siswa
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        Cari siswa berdasarkan nama, NISN, atau filter rombel kelas untuk pemantauan cepat
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-500 text-[11px] font-medium">
+                      Menampilkan <strong className="text-purple-700 font-extrabold">{filteredQuickStudents.length}</strong> dari {allStudents.length} siswa
+                    </span>
+                    {(quickStudentSearch || quickClassFilter !== 'all') && (
+                      <button
+                        onClick={() => { setQuickStudentSearch(''); setQuickClassFilter('all'); }}
+                        className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                      >
+                        Reset Filter
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Search & Filter Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                  <div className="sm:col-span-7 relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Ketik nama siswa, NISN, atau username..."
+                      value={quickStudentSearch}
+                      onChange={(e) => setQuickStudentSearch(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all font-medium"
+                    />
+                    {quickStudentSearch && (
+                      <button
+                        onClick={() => setQuickStudentSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="sm:col-span-5 relative">
+                    <select
+                      value={quickClassFilter}
+                      onChange={(e) => setQuickClassFilter(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 font-bold text-slate-700 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all cursor-pointer"
+                    >
+                      <option value="all">Semua Rombel Kelas ({classes.length} Kelas)</option>
+                      {classes.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} (Tingkat {c.grade})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Quick Results Grid */}
+                <div className="space-y-2 pt-0.5">
+                  {filteredQuickStudents.length === 0 ? (
+                    <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                      Tidak ada siswa yang cocok dengan kriteria pencarian nama atau kelas yang dipilih.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
+                      {filteredQuickStudents.slice(0, 9).map(student => {
+                        const studentClass = classes.find(c => c.id === student.kelasId);
+                        const guruWali = users.find(u => u.id === student.assignedGuruId);
+                        return (
+                          <div
+                            key={student.id}
+                            className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-white hover:border-purple-200 hover:shadow-2xs transition-all flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-extrabold text-xs text-slate-900 truncate">
+                                  {student.fullName}
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-emerald-100 text-emerald-800 shrink-0">
+                                  {studentClass?.name || 'Tanpa Kelas'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
+                                NISN: {student.nisn || '-'} {guruWali && `• Wali: ${guruWali.fullName.split(' ')[0]}`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => handleOpenEditUser(student)}
+                                className="p-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-purple-700 hover:border-purple-300 transition-colors shadow-2xs cursor-pointer"
+                                title="Edit Akun Siswa"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setAdminTab('users');
+                                  setUserFilterRole('siswa');
+                                  setUserSearchQuery(student.fullName);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold text-[10px] transition-colors cursor-pointer"
+                                title="Buka data lengkap di tab Pengguna"
+                              >
+                                Detail
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {filteredQuickStudents.length > 9 && (
+                    <div className="text-center pt-1 border-t border-slate-100">
+                      <button
+                        onClick={() => {
+                          setAdminTab('users');
+                          setUserFilterRole('siswa');
+                          if (quickClassFilter !== 'all') setUserFilterClass(quickClassFilter);
+                          if (quickStudentSearch) setUserSearchQuery(quickStudentSearch);
+                        }}
+                        className="text-xs font-bold text-purple-600 hover:text-purple-800 hover:underline cursor-pointer"
+                      >
+                        Lihat semua {filteredQuickStudents.length} siswa di tab Pengguna &rarr;
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="font-bold text-sm text-slate-900">
@@ -1145,7 +1310,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           {/* Filter & Search Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
             {/* Role Filter Pills */}
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar p-1 bg-slate-100 rounded-xl text-xs font-bold">
               <button
@@ -1194,31 +1359,91 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
 
-            {/* Search Input */}
-            <div className="relative flex-1 sm:max-w-xs">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Cari nama, username, NISN/NIP..."
-                value={userSearchQuery}
-                onChange={(e) => setUserSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all"
-              />
-              {userSearchQuery && (
-                <button
-                  onClick={() => setUserSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+            {/* Class Dropdown Filter & Search Input */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 lg:max-w-md">
+              <select
+                value={userFilterClass}
+                onChange={(e) => setUserFilterClass(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 font-bold text-slate-700 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all cursor-pointer sm:w-48"
+              >
+                <option value="all">Semua Rombel ({classes.length} Kelas)</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} (Tingkat {c.grade})
+                  </option>
+                ))}
+              </select>
+
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari nama, NISN, username, kelas..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all font-medium"
+                />
+                {userSearchQuery && (
+                  <button
+                    onClick={() => setUserSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Active Filter Indicators */}
+          {(() => {
+            const hasActiveFilter = userFilterRole !== 'all' || userFilterClass !== 'all' || userSearchQuery.trim().length > 0;
+            const currentClassName = classes.find(c => c.id === userFilterClass)?.name;
+
+            return (
+              hasActiveFilter && (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] text-slate-500 font-semibold">Filter Aktif:</span>
+                    {userFilterRole !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800">
+                        Peran: {userFilterRole}
+                        <button onClick={() => setUserFilterRole('all')} className="hover:opacity-75 cursor-pointer">×</button>
+                      </span>
+                    )}
+                    {userFilterClass !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800">
+                        Kelas: {currentClassName}
+                        <button onClick={() => setUserFilterClass('all')} className="hover:opacity-75 cursor-pointer">×</button>
+                      </span>
+                    )}
+                    {userSearchQuery.trim() && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-800">
+                        Kata Kunci: "{userSearchQuery}"
+                        <button onClick={() => setUserSearchQuery('')} className="hover:opacity-75 cursor-pointer">×</button>
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setUserFilterRole('all');
+                      setUserFilterClass('all');
+                      setUserSearchQuery('');
+                    }}
+                    className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                  >
+                    Reset Semua Filter
+                  </button>
+                </div>
+              )
+            );
+          })()}
 
           {/* User List: Mobile Cards */}
           {(() => {
             const filteredUsers = users.filter(u => {
               if (userFilterRole !== 'all' && u.role !== userFilterRole) return false;
+              if (userFilterClass !== 'all' && u.kelasId !== userFilterClass) return false;
               if (userSearchQuery.trim()) {
                 const q = userSearchQuery.toLowerCase().trim();
                 const matchName = u.fullName.toLowerCase().includes(q);
@@ -1239,8 +1464,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <p className="text-xs text-slate-500 font-semibold">Tidak ada pengguna yang cocok dengan filter atau kata kunci pencarian.</p>
                   <button
-                    onClick={() => { setUserFilterRole('all'); setUserSearchQuery(''); }}
-                    className="mt-2 text-xs font-bold text-purple-600 hover:underline"
+                    onClick={() => { setUserFilterRole('all'); setUserFilterClass('all'); setUserSearchQuery(''); }}
+                    className="mt-2 text-xs font-bold text-purple-600 hover:underline cursor-pointer"
                   >
                     Reset Filter
                   </button>
