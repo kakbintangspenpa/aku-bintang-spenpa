@@ -54,8 +54,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'guru':
         return [
           { id: 'dashboard', label: 'Dashboard' },
-          { id: 'verify_journals', label: 'Verifikasi' },
-          { id: 'coaching', label: 'Pembinaan' },
           { id: 'reports', label: 'Laporan' }
         ];
       case 'siswa':
@@ -67,8 +65,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'orang_tua':
         return [
           { id: 'dashboard', label: 'Kebiasaan Anak' },
-          { id: 'child_journals', label: 'Jurnal' },
-          { id: 'parent_support', label: 'Dukungan' },
           { id: 'reports', label: 'Laporan' }
         ];
     }

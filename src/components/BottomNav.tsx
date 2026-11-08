@@ -37,16 +37,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         ];
       case 'guru':
         return [
-          { id: 'dashboard', label: 'Beranda', icon: Home },
-          { id: 'verify_journals', label: 'Verifikasi', icon: CheckCircle2, badge: pendingCount },
-          { id: 'coaching', label: 'Pembinaan', icon: HeartHandshake },
+          { id: 'dashboard', label: 'Dashboard', icon: Home, badge: pendingCount > 0 ? pendingCount : undefined },
           { id: 'reports', label: 'Laporan', icon: FileText }
         ];
       case 'orang_tua':
         return [
-          { id: 'dashboard', label: 'Pantau Anak', icon: Home },
-          { id: 'child_journals', label: 'Jurnal Foto', icon: ListTodo },
-          { id: 'parent_support', label: 'Dukungan', icon: HeartHandshake },
+          { id: 'dashboard', label: 'Kebiasaan Anak', icon: Home },
           { id: 'reports', label: 'Laporan', icon: FileText }
         ];
       case 'admin':

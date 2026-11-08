@@ -261,7 +261,7 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
 
 
           <div className="flex flex-wrap justify-center gap-2.5 sm:gap-3.5">
-            {TUJUH_KEBIASAAN.map((habit) => {
+            {TUJUH_KEBIASAAN.map((habit, idx) => {
               const entry = selectedDateJournals.find(j => j.habitId === habit.id);
               return (
                 <div
@@ -273,6 +273,7 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
                     todayJournal={entry}
                     onOpenJournalModal={onOpenJournalModal}
                     onViewPhoto={onViewPhoto}
+                    index={idx}
                   />
                 </div>
               );
