@@ -16,7 +16,8 @@ import {
   Send,
   Image as ImageIcon,
   UserCheck,
-  FileText
+  FileText,
+  GraduationCap
 } from 'lucide-react';
 
 interface OrangTuaDashboardProps {
@@ -129,17 +130,23 @@ export const OrangTuaDashboard: React.FC<OrangTuaDashboardProps> = ({
           {/* 2. Child Profile & Progress Card */}
           <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img
-                src={activeChild.avatarUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150'}
-                alt={activeChild.fullName}
-                className="w-12 h-12 rounded-xl object-cover ring-2 ring-amber-200"
-              />
+              {activeChild.avatarUrl ? (
+                <img
+                  src={activeChild.avatarUrl}
+                  alt={activeChild.fullName}
+                  className="w-12 h-12 rounded-xl object-cover ring-2 ring-amber-300 shadow-2xs shrink-0"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center font-black text-sm shadow-2xs shrink-0">
+                  <GraduationCap className="w-6 h-6 text-amber-700" />
+                </div>
+              )}
               <div>
                 <h2 className="text-base font-bold text-slate-900 leading-tight">
                   {activeChild.fullName}
                 </h2>
                 <span className="text-[11px] text-slate-500 block">
-                  Kelas 5A &bull; NISN: {activeChild.nisn || '-'}
+                  Siswa Binaan &bull; NISN: {activeChild.nisn || '-'}
                 </span>
               </div>
             </div>

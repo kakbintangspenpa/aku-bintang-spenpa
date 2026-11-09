@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   Role,
@@ -19,6 +19,7 @@ import {
   Plus,
   Edit2,
   Key,
+  Camera,
   CheckCircle2,
   HardDrive,
   Activity,
@@ -46,6 +47,15 @@ import {
   X,
   Filter
 } from 'lucide-react';
+
+const ROLE_AVATAR_PRESETS = [
+  { label: 'Siswa Putra', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80' },
+  { label: 'Siswa Putri', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80' },
+  { label: 'Guru Pria', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80' },
+  { label: 'Guru Wanita', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80' },
+  { label: 'Orang Tua', url: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=200&auto=format&fit=crop&q=80' },
+  { label: 'Admin', url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&auto=format&fit=crop&q=80' }
+];
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -92,6 +102,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUploadError, setAvatarUploadError] = useState('');
+  const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const [role, setRole] = useState<Role>('siswa');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -159,6 +172,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setRole(targetRole);
     setFullName('');
     setUsername('');
+    setAvatarUrl('');
+    setAvatarUploadError('');
     setEmail('');
     setPhone('');
     setNisnNip('');
@@ -179,6 +194,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setFullName(user.fullName);
     setUsername(user.username);
     setRole(user.role);
+    setAvatarUrl(user.avatarUrl || '');
+    setAvatarUploadError('');
     setEmail(user.email || '');
     setPhone(user.phone || '');
     setNisnNip(user.nisn || user.nip || '');
@@ -190,6 +207,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setFormError('');
     setFormSuccess('');
     setShowUserModal(true);
+  };
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAvatarUploadError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarUploadError('Harap pilih berkas foto yang valid (JPG, PNG, atau WEBP).');
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      setAvatarUploadError('Ukuran file foto maksimal 3 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setAvatarUrl(result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAutoGenerateUsername = () => {
@@ -249,6 +291,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           fullName: fullName.trim(),
           username: username.trim(),
           role,
+          avatarUrl: avatarUrl.trim() || undefined,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           nisn: role === 'siswa' ? nisnNip.trim() : undefined,
@@ -270,6 +313,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           password: userPassword.trim() || 'password123',
           role,
           status: 'active',
+          avatarUrl: avatarUrl.trim() || undefined,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           nisn: role === 'siswa' ? nisnNip.trim() : undefined,
@@ -1178,18 +1222,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             key={student.id}
                             className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-white hover:border-purple-200 hover:shadow-2xs transition-all flex items-center justify-between gap-2"
                           >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-extrabold text-xs text-slate-900 truncate">
-                                  {student.fullName}
-                                </span>
-                                <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-emerald-100 text-emerald-800 shrink-0">
-                                  {studentClass?.name || 'Tanpa Kelas'}
-                                </span>
+                            <div className="min-w-0 flex items-center gap-2">
+                              {student.avatarUrl ? (
+                                <img
+                                  src={student.avatarUrl}
+                                  alt={student.fullName}
+                                  className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                                  <GraduationCap className="w-4 h-4" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-extrabold text-xs text-slate-900 truncate">
+                                    {student.fullName}
+                                  </span>
+                                  <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-emerald-100 text-emerald-800 shrink-0">
+                                    {studentClass?.name || 'Tanpa Kelas'}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
+                                  NISN: {student.nisn || '-'} {guruWali && `• Wali: ${guruWali.fullName.split(' ')[0]}`}
+                                </p>
                               </div>
-                              <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
-                                NISN: {student.nisn || '-'} {guruWali && `• Wali: ${guruWali.fullName.split(' ')[0]}`}
-                              </p>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <button
@@ -1485,15 +1542,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     return (
                       <div key={u.id} className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-2 text-xs">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              {u.role === 'siswa' && <GraduationCap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                              {u.role === 'guru' && <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
-                              {u.role === 'orang_tua' && <HeartHandshake className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
-                              {u.role === 'admin' && <Shield className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
-                              <span className="font-bold text-slate-900">{u.fullName}</span>
+                          <div className="flex items-center gap-2">
+                            {u.avatarUrl ? (
+                              <img
+                                src={u.avatarUrl}
+                                alt={u.fullName}
+                                className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-200 shadow-2xs shrink-0"
+                              />
+                            ) : (
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
+                                u.role === 'siswa' ? 'bg-emerald-100 text-emerald-800' :
+                                u.role === 'guru' ? 'bg-blue-100 text-blue-800' :
+                                u.role === 'orang_tua' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
+                              }`}>
+                                {u.role === 'siswa' && <GraduationCap className="w-4 h-4" />}
+                                {u.role === 'guru' && <UserCheck className="w-4 h-4" />}
+                                {u.role === 'orang_tua' && <HeartHandshake className="w-4 h-4" />}
+                                {u.role === 'admin' && <Shield className="w-4 h-4" />}
+                              </div>
+                            )}
+                            <div>
+                              <span className="font-bold text-slate-900 block leading-tight">{u.fullName}</span>
+                              <span className="text-[11px] text-slate-500 font-mono block mt-0.5">@{u.username}</span>
                             </div>
-                            <span className="text-[11px] text-slate-500 font-mono block mt-0.5">@{u.username}</span>
                           </div>
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase shrink-0 ${
                             u.role === 'admin' ? 'bg-purple-100 text-purple-800' :
@@ -1590,16 +1661,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="p-3">
                               <div className="flex items-center gap-2">
-                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
-                                  u.role === 'siswa' ? 'bg-emerald-100 text-emerald-800' :
-                                  u.role === 'guru' ? 'bg-blue-100 text-blue-800' :
-                                  u.role === 'orang_tua' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
-                                }`}>
-                                  {u.role === 'siswa' && <GraduationCap className="w-4 h-4" />}
-                                  {u.role === 'guru' && <UserCheck className="w-4 h-4" />}
-                                  {u.role === 'orang_tua' && <HeartHandshake className="w-4 h-4" />}
-                                  {u.role === 'admin' && <Shield className="w-4 h-4" />}
-                                </div>
+                                {u.avatarUrl ? (
+                                  <img
+                                    src={u.avatarUrl}
+                                    alt={u.fullName}
+                                    className="w-8 h-8 rounded-xl object-cover ring-1 ring-slate-200 shrink-0 shadow-2xs"
+                                  />
+                                ) : (
+                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
+                                    u.role === 'siswa' ? 'bg-emerald-100 text-emerald-800' :
+                                    u.role === 'guru' ? 'bg-blue-100 text-blue-800' :
+                                    u.role === 'orang_tua' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
+                                  }`}>
+                                    {u.role === 'siswa' && <GraduationCap className="w-4 h-4" />}
+                                    {u.role === 'guru' && <UserCheck className="w-4 h-4" />}
+                                    {u.role === 'orang_tua' && <HeartHandshake className="w-4 h-4" />}
+                                    {u.role === 'admin' && <Shield className="w-4 h-4" />}
+                                  </div>
+                                )}
                                 <div>
                                   <span className="font-bold text-slate-900 block">{u.fullName}</span>
                                   {u.role === 'siswa' && u.nisn && (
@@ -2184,6 +2263,129 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="w-full rounded-xl border border-slate-300 p-2.5 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all font-medium"
                     required
                   />
+                </div>
+
+                {/* Foto Profil Pengguna (Semua Akun) */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-50 via-purple-50/30 to-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Camera className="w-4 h-4 text-purple-600" />
+                      <span className="font-extrabold text-xs text-slate-900">
+                        Foto Profil Akun ({role === 'siswa' ? 'Siswa' : role === 'guru' ? 'Guru' : role === 'orang_tua' ? 'Orang Tua' : 'Admin'})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                      Opsional
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-3.5">
+                    {/* Live Preview */}
+                    <div className="relative group shrink-0">
+                      {avatarUrl ? (
+                        <div className="relative w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-purple-500 shadow-md">
+                          <img
+                            src={avatarUrl}
+                            alt="Pratinjau Foto"
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setAvatarUrl('')}
+                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold cursor-pointer"
+                            title="Hapus foto"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-400 mb-0.5" />
+                            <span>Hapus</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-bold text-xs border border-dashed border-slate-300 shadow-2xs ${
+                          role === 'siswa' ? 'bg-emerald-50 text-emerald-700' :
+                          role === 'guru' ? 'bg-blue-50 text-blue-700' :
+                          role === 'orang_tua' ? 'bg-amber-50 text-amber-700' : 'bg-purple-50 text-purple-700'
+                        }`}>
+                          <Camera className="w-5 h-5 text-slate-400 mb-0.5" />
+                          <span className="text-[9px] text-slate-500 font-semibold">Tanpa Foto</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Upload Controls & URL */}
+                    <div className="flex-1 space-y-2 w-full">
+                      <input
+                        type="file"
+                        ref={avatarFileInputRef}
+                        onChange={handleAvatarFileChange}
+                        accept="image/*"
+                        className="hidden"
+                      />
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => avatarFileInputRef.current?.click()}
+                          className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{avatarUrl ? 'Ganti Berkas Foto' : 'Unggah Foto dari HP / Komputer'}</span>
+                        </button>
+
+                        {avatarUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setAvatarUrl('')}
+                            className="px-2.5 py-1.5 rounded-xl bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Hapus Foto</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="url"
+                          value={avatarUrl}
+                          onChange={(e) => setAvatarUrl(e.target.value)}
+                          placeholder="Atau tempel link URL foto langsung (https://...)..."
+                          className="w-full text-[11px] rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-purple-500 font-mono"
+                        />
+                      </div>
+
+                      {avatarUploadError && (
+                        <p className="text-[11px] text-red-600 font-medium">{avatarUploadError}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quick Avatar Presets */}
+                  <div className="pt-2 border-t border-slate-200/70">
+                    <span className="text-[10px] font-bold text-slate-500 block mb-1.5">
+                      Pilihan Cepat Foto Karakter / Ilustrasi:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {ROLE_AVATAR_PRESETS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setAvatarUrl(preset.url)}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${
+                            avatarUrl === preset.url
+                              ? 'bg-purple-600 border-purple-600 text-white shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.label}
+                            className="w-3.5 h-3.5 rounded-full object-cover"
+                          />
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* SISWA SPECIFIC FIELDS */}

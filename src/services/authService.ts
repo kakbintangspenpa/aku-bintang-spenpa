@@ -30,10 +30,11 @@ class AuthService {
   setCurrentUser(user: User | null): void {
     if (user) {
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      this.notify(user);
     } else {
       localStorage.removeItem(AUTH_USER_KEY);
+      this.notify(null);
     }
-    this.notify(user);
   }
 
   subscribe(listener: AuthListener): () => void {

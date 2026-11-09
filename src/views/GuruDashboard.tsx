@@ -290,9 +290,22 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             return (
               <div key={student.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-slate-900 block">{student.fullName}</span>
-                    <span className="text-[10px] text-slate-400">NISN: {student.nisn || '-'}</span>
+                  <div className="flex items-center gap-2">
+                    {student.avatarUrl ? (
+                      <img
+                        src={student.avatarUrl}
+                        alt={student.fullName}
+                        className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
+                        {student.fullName.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <span className="font-bold text-slate-900 block leading-tight">{student.fullName}</span>
+                      <span className="text-[10px] text-slate-400">NISN: {student.nisn || '-'}</span>
+                    </div>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                     rate >= 75 ? 'bg-emerald-100 text-emerald-800' :
@@ -339,7 +352,22 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
 
                 return (
                   <tr key={student.id} className="hover:bg-slate-50">
-                    <td className="p-2.5 font-bold text-slate-900">{student.fullName}</td>
+                    <td className="p-2.5">
+                      <div className="flex items-center gap-2">
+                        {student.avatarUrl ? (
+                          <img
+                            src={student.avatarUrl}
+                            alt={student.fullName}
+                            className="w-7 h-7 rounded-lg object-cover ring-1 ring-slate-200 shrink-0 shadow-2xs"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {student.fullName.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="font-bold text-slate-900">{student.fullName}</span>
+                      </div>
+                    </td>
                     <td className="p-2.5 text-slate-500 font-mono text-[11px]">{student.nisn || '-'}</td>
                     <td className="p-2.5 text-slate-700">{sJournals.length} Entri</td>
                     <td className="p-2.5 font-bold text-slate-700">{rate}%</td>

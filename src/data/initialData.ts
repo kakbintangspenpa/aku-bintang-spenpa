@@ -40,7 +40,6 @@ export const INITIAL_USERS: User[] = [
     email: 'admin.hebat@sekolah.sch.id',
     phone: '081234567890',
     status: 'active',
-    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-10T08:00:00Z',
     lastLogin: '2026-11-03T07:15:00Z'
   },
@@ -55,7 +54,6 @@ export const INITIAL_USERS: User[] = [
     status: 'active',
     nip: '198504122010012015',
     kelasId: 'kelas-7-1',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-10T08:00:00Z',
     lastLogin: '2026-11-03T07:45:00Z'
   },
@@ -70,7 +68,6 @@ export const INITIAL_USERS: User[] = [
     status: 'active',
     nip: '198807192014021003',
     kelasId: 'kelas-8-1',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-10T08:00:00Z',
     lastLogin: '2026-11-02T14:20:00Z'
   },
@@ -84,7 +81,6 @@ export const INITIAL_USERS: User[] = [
     kelasId: 'kelas-7-1',
     assignedGuruId: 'usr-guru-dewi',
     status: 'active',
-    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-15T09:00:00Z',
     lastLogin: '2026-11-03T06:30:00Z'
   },
@@ -98,7 +94,6 @@ export const INITIAL_USERS: User[] = [
     kelasId: 'kelas-7-1',
     assignedGuruId: 'usr-guru-dewi',
     status: 'active',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-15T09:00:00Z',
     lastLogin: '2026-11-03T06:15:00Z'
   },
@@ -112,7 +107,6 @@ export const INITIAL_USERS: User[] = [
     kelasId: 'kelas-8-1',
     assignedGuruId: 'usr-guru-rizky',
     status: 'active',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-15T09:00:00Z',
     lastLogin: '2026-11-02T19:00:00Z'
   },
@@ -127,7 +121,6 @@ export const INITIAL_USERS: User[] = [
     phone: '081288990011',
     email: 'hendra.pratama@gmail.com',
     status: 'active',
-    avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-15T10:00:00Z',
     lastLogin: '2026-11-03T07:10:00Z'
   },
@@ -142,7 +135,6 @@ export const INITIAL_USERS: User[] = [
     phone: '081277665544',
     email: 'siti.rahmawati@gmail.com',
     status: 'active',
-    avatarUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&auto=format&fit=crop&q=80',
     createdAt: '2026-01-15T10:00:00Z',
     lastLogin: '2026-11-02T20:30:00Z'
   }

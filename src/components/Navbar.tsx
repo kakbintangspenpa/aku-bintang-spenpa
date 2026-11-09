@@ -72,6 +72,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navLinks = getNavLinks();
 
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'U';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
       <div className="max-w-7xl mx-auto px-3 sm:px-6">
@@ -111,14 +118,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             ))}
           </nav>
 
-          {/* User Profile Pill & Actions */}
+          {/* User Account Avatar & Actions */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 pl-2">
-              <img
-                src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-                alt={currentUser.fullName}
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200"
-              />
+              {currentUser.avatarUrl ? (
+                <img
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.fullName}
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shadow-2xs shrink-0"
+                />
+              ) : (
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shadow-2xs border select-none shrink-0 ${
+                    currentUser.role === 'admin'
+                      ? 'bg-purple-100 text-purple-800 border-purple-300 ring-2 ring-purple-100'
+                      : currentUser.role === 'guru'
+                      ? 'bg-blue-100 text-blue-800 border-blue-300 ring-2 ring-blue-100'
+                      : currentUser.role === 'siswa'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-2 ring-emerald-100'
+                      : 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-100'
+                  }`}
+                  title={`Akun: ${currentUser.fullName} (${roleMeta.label})`}
+                >
+                  {getInitials(currentUser.fullName)}
+                </div>
+              )}
               <div className="text-left hidden sm:block">
                 <div className="text-xs font-bold text-slate-800 truncate max-w-[120px]">
                   {currentUser.fullName}
