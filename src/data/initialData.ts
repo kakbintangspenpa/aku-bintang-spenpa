@@ -481,10 +481,10 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
 ];
 
 export const INITIAL_DRIVE_CONFIG: GoogleDriveConfig = {
-  sheetWebhookUrl: '',
+  sheetWebhookUrl: 'https://script.google.com/macros/s/AKfycbz1IgevdL6eAiIe14dfT7TP9XTAV4DdWRquthhZEAu0fE7U81Z4dfG4nHDQmNMnntk7xA/exec',
   driveFolderId: '1AbCdEfGhIjKlMnOpQrStUvWxYz-7KebiasaanRoot',
-  schoolGoogleAccount: 'admin.karakter@smpn1teladan.sch.id',
-  lastSyncTime: '2026-11-03T07:00:00Z',
+  schoolGoogleAccount: 'kakbintangspenpa@gmail.com',
+  lastSyncTime: '2026-11-09T20:00:00Z',
   autoSyncEnabled: true,
-  status: 'mock_mode'
+  status: 'connected'
 };

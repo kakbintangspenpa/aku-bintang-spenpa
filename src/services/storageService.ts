@@ -377,7 +377,13 @@ class StorageService {
 
   // --- Google Drive & Sheets Config ---
   getDriveConfig(): GoogleDriveConfig {
-    return this.getItem<GoogleDriveConfig>(STORAGE_KEYS.DRIVE_CONFIG, INITIAL_DRIVE_CONFIG);
+    const config = this.getItem<GoogleDriveConfig>(STORAGE_KEYS.DRIVE_CONFIG, INITIAL_DRIVE_CONFIG);
+    if (!config.sheetWebhookUrl) {
+      config.sheetWebhookUrl = 'https://script.google.com/macros/s/AKfycbz1IgevdL6eAiIe14dfT7TP9XTAV4DdWRquthhZEAu0fE7U81Z4dfG4nHDQmNMnntk7xA/exec';
+      config.status = 'connected';
+      this.saveDriveConfig(config);
+    }
+    return config;
   }
 
   saveDriveConfig(config: GoogleDriveConfig): void {
