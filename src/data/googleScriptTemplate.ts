@@ -134,11 +134,64 @@ function doPost(e) {
         }
         break;
 
+      case "RECORD_JOURNAL":
+        // Catat data jurnal harian ke tabel TB_JURNAL_HARIAN
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const jSheet = ss.getSheetByName("TB_JURNAL_HARIAN");
+        if (jSheet && requestData.entry) {
+          const entry = requestData.entry;
+          jSheet.appendRow([
+            entry.id || Utilities.getUuid(),
+            entry.siswaId || "",
+            entry.siswaName || "",
+            entry.kelasId || "",
+            entry.habitId || "",
+            entry.date || "",
+            entry.time || "",
+            entry.activityDescription || "",
+            entry.reflection || "",
+            entry.photoUrl || "",
+            entry.status || "",
+            entry.guruVerified ? "YA" : "TIDAK",
+            entry.guruFeedback || "",
+            new Date().toISOString()
+          ]);
+        }
+        response.message = "Jurnal berhasil dicatat ke Google Sheets.";
+        break;
+
       case "SYNC_ALL":
-        // Simpan snapshot lengkap data ke Google Sheets & arsip JSON di ARSIP-ADMIN
+        // 1. Simpan snapshot berkas JSON di ARSIP-ADMIN
         const arsipFolder = getOrCreateSubFolder(rootFolder, "ARSIP-ADMIN");
         const backupName = "BACKUP_DATA_" + Utilities.formatDate(new Date(), "GMT+7", "yyyy-MM-dd_HH-mm") + ".json";
         arsipFolder.createFile(backupName, JSON.stringify(requestData.payload, null, 2), "application/json");
+
+        // 2. Tulis data jurnal ke lembar TB_JURNAL_HARIAN
+        if (requestData.payload && requestData.payload.data && requestData.payload.data.journals) {
+          const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+          const targetSheet = activeSs.getSheetByName("TB_JURNAL_HARIAN");
+          if (targetSheet) {
+            const list = requestData.payload.data.journals;
+            list.forEach(function(entry) {
+              targetSheet.appendRow([
+                entry.id || Utilities.getUuid(),
+                entry.siswaId || "",
+                entry.siswaName || "",
+                entry.kelasId || "",
+                entry.habitId || "",
+                entry.date || "",
+                entry.time || "",
+                entry.activityDescription || "",
+                entry.reflection || "",
+                entry.photoUrl || "",
+                entry.status || "",
+                entry.guruVerified ? "YA" : "TIDAK",
+                entry.guruFeedback || "",
+                new Date().toISOString()
+              ]);
+            });
+          }
+        }
         response.message = "Sinkronisasi cadangan ke Google Drive berhasil disimpan.";
         break;
 

@@ -5,6 +5,7 @@ import { TUJUH_KEBIASAAN, CONTOH_ISIAN_KEBIASAAN, HABIT_TIME_RESTRICTIONS } from
 import { HabitIcon } from './HabitIcon';
 
 import { storageService } from '../services/storageService';
+import { googleWebhookService } from '../services/googleWebhookService';
 import {
   X,
   Upload,
@@ -207,8 +208,9 @@ export const JournalModal: React.FC<JournalModalProps> = ({
       return;
     }
 
+    let savedEntry: JournalEntry;
     if (existingEntry) {
-      storageService.updateJournal(
+      savedEntry = storageService.updateJournal(
         existingEntry.id,
         {
           habitId,
@@ -222,9 +224,9 @@ export const JournalModal: React.FC<JournalModalProps> = ({
         },
         currentUser.fullName,
         currentUser.role
-      );
+      ) || existingEntry;
     } else {
-      storageService.addJournal({
+      savedEntry = storageService.addJournal({
         siswaId: currentUser.id,
         siswaName: currentUser.fullName,
         kelasId: currentUser.kelasId || 'kelas-5a',
@@ -238,6 +240,22 @@ export const JournalModal: React.FC<JournalModalProps> = ({
         photoFileName: photoFileName || undefined,
         photoDriveFileId: photoUrl ? `DRIVE_${Date.now()}` : undefined
       });
+    }
+
+    // Kirim langsung ke Google Drive & Sheets jika Webhook URL telah disetel oleh Admin
+    const driveConfig = storageService.getDriveConfig();
+    if (driveConfig?.sheetWebhookUrl) {
+      // 1. Kirim data jurnal ke Google Spreadsheet (TB_JURNAL_HARIAN)
+      googleWebhookService.recordJournal(driveConfig.sheetWebhookUrl, savedEntry);
+
+      // 2. Jika ada foto bukti, kirim foto ke folder Google Drive DOKUMENTASI-SISWA
+      if (photoUrl) {
+        googleWebhookService.uploadPhoto(
+          driveConfig.sheetWebhookUrl,
+          photoUrl,
+          photoFileName || `bukti_${habitId}_${Date.now()}.jpg`
+        );
+      }
     }
 
     if (status === 'Sudah Dilaksanakan') {

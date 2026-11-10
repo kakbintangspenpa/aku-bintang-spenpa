@@ -8,6 +8,7 @@ import {
   GoogleDriveConfig
 } from '../types';
 import { storageService } from '../services/storageService';
+import { googleWebhookService } from '../services/googleWebhookService';
 import { DRIVE_FOLDER_STRUCTURE, SHEETS_SCHEMA } from '../data/constants';
 import { GOOGLE_APPS_SCRIPT_CODE } from '../data/googleScriptTemplate';
 import {
@@ -452,31 +453,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleSaveDriveConfig = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanUrl = webhookUrl.trim();
     storageService.saveDriveConfig({
       ...driveConfig,
-      sheetWebhookUrl: webhookUrl.trim(),
-      status: webhookUrl.trim() ? 'connected' : 'mock_mode'
+      sheetWebhookUrl: cleanUrl,
+      status: cleanUrl ? 'connected' : 'mock_mode'
     });
-    setSyncStatusMsg('Pengaturan Google Drive & Sheets tersimpan!');
-    setTimeout(() => setSyncStatusMsg(''), 3000);
+
+    if (cleanUrl) {
+      googleWebhookService.ping(cleanUrl);
+      setSyncStatusMsg('✅ Pengaturan tersimpan! Webhook Google Apps Script siap digunakan.');
+    } else {
+      setSyncStatusMsg('Pengaturan disimpan (Mode Lokal).');
+    }
+
+    setTimeout(() => setSyncStatusMsg(''), 4000);
     onRefreshData();
   };
 
-  const handleTriggerManualSync = () => {
-    setIsSyncing(true);
-    setSyncStatusMsg('Melakukan sinkronisasi snapshot data ke Google Drive...');
+  const handleTriggerManualSync = async () => {
+    const cleanUrl = webhookUrl.trim() || driveConfig.sheetWebhookUrl;
+    if (!cleanUrl) {
+      setSyncStatusMsg('⚠️ Harap masukkan dan simpan URL Webhook Google Apps Script Anda terlebih dahulu.');
+      setTimeout(() => setSyncStatusMsg(''), 5000);
+      return;
+    }
 
-    setTimeout(() => {
-      setIsSyncing(false);
+    setIsSyncing(true);
+    setSyncStatusMsg('⏳ Mengirim data cadangan ke Google Drive (/ARSIP-ADMIN) dan Google Sheets...');
+
+    try {
+      const fullData = JSON.parse(storageService.exportFullDatabase());
+      await googleWebhookService.syncAll(cleanUrl, fullData);
+
       storageService.saveDriveConfig({
         ...driveConfig,
+        sheetWebhookUrl: cleanUrl,
+        status: 'connected',
         lastSyncTime: new Date().toISOString()
       });
-      storageService.addAuditLog(currentUser.fullName, 'admin', 'SYNC_DRIVE', 'Sinkronisasi database ke Google Drive berhasil.');
-      setSyncStatusMsg('✅ Sinkronisasi berhasil! Arsip tersimpan di Google Drive /ARSIP-ADMIN.');
-      setTimeout(() => setSyncStatusMsg(''), 4000);
+      storageService.addAuditLog(currentUser.fullName, 'admin', 'SYNC_DRIVE', 'Sinkronisasi cadangan ke Google Drive berhasil.');
+      setSyncStatusMsg('✅ Sukses terkirim! File cadangan telah dibuat di Google Drive /ARSIP-ADMIN dan data tercatat di Google Sheets.');
+    } catch (err: any) {
+      setSyncStatusMsg('Gagal menyinkronkan: ' + (err?.message || 'Periksa URL Webhook'));
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncStatusMsg(''), 6000);
       onRefreshData();
-    }, 1000);
+    }
   };
 
   const handleDownloadBackup = () => {
