@@ -118,10 +118,16 @@ export const HabitCard: React.FC<HabitCardProps> = ({
       </div>
 
       {/* Habit Name (Centered, Crisp Modern Typography) */}
-      <div className="w-full my-1.5 min-h-[36px] flex items-center justify-center relative z-10">
+      <div className="w-full my-1 min-h-[40px] flex flex-col items-center justify-center relative z-10">
         <h3 className="text-xs sm:text-[13px] font-extrabold text-slate-800 leading-snug group-hover:text-red-600 transition-colors line-clamp-2">
           {habit.title}
         </h3>
+        {habit.suggestedTimes && (
+          <span className="text-[9.5px] font-bold text-slate-400 group-hover:text-slate-600 mt-0.5 flex items-center gap-0.5 tracking-tight">
+            <Clock className="w-2.5 h-2.5 text-slate-400" />
+            {habit.suggestedTimes}
+          </span>
+        )}
       </div>
 
       {/* Bottom Status Pill */}

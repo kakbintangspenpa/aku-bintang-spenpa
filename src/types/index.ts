@@ -1,12 +1,14 @@
 export type Role = 'admin' | 'guru' | 'siswa' | 'orang_tua';
 
 export type HabitId = 
-  | 'bangun_pagi_ibadah'
+  | 'bangun_pagi'
+  | 'beribadah'
   | 'berolahraga'
   | 'makan_sehat'
   | 'gemar_membaca'
   | 'bermasyarakat'
   | 'istirahat_tepat'
+  | 'bangun_pagi_ibadah'
   | 'kedisiplinan_umum';
 
 export interface HabitDefinition {

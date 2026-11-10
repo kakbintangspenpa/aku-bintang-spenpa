@@ -7,16 +7,60 @@ export interface ContohIsian {
   tips: string;
 }
 
+export interface HabitTimeRestriction {
+  habitId: HabitId;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+  timeWindowLabel: string;
+  habitName: string;
+  description: string;
+}
+
+export const HABIT_TIME_RESTRICTIONS: Partial<Record<HabitId, HabitTimeRestriction>> = {
+  bangun_pagi: {
+    habitId: 'bangun_pagi',
+    startHour: 5,
+    startMinute: 0,
+    endHour: 6,
+    endMinute: 0,
+    timeWindowLabel: '05.00 - 06.00 WIB',
+    habitName: 'Bangun Pagi',
+    description: 'Pengisian status "Sudah Dilaksanakan" hanya dibuka pukul 05.00 - 06.00 WIB. Di luar waktu ini hanya bisa mengisi "Belum Terlaksana".'
+  },
+  beribadah: {
+    habitId: 'beribadah',
+    startHour: 4,
+    startMinute: 0,
+    endHour: 5,
+    endMinute: 30,
+    timeWindowLabel: '04.00 - 05.30 WIB',
+    habitName: 'Beribadah',
+    description: 'Pengisian status "Sudah Dilaksanakan" hanya dibuka pukul 04.00 - 05.30 WIB. Di luar waktu ini hanya bisa mengisi "Belum Terlaksana".'
+  }
+};
+
 export const CONTOH_ISIAN_KEBIASAAN: Record<HabitId, ContohIsian> = {
-  bangun_pagi_ibadah: {
-    activity: 'Bangun pukul 04.45 WIB, merapikan tempat tidur dan melipat selimut secara mandiri, lalu berwudhu untuk sholat Subuh berjamaah bersama keluarga di masjid.',
-    reflection: 'Badan terasa segar, pikiran tenang, dan lebih siap menyambut kegiatan sekolah hari ini.',
+  bangun_pagi: {
+    activity: 'Bangun tepat pukul 05.15 WIB tanpa perlu dibangunkan orang tua, merapikan selimut, melipat sprei, membuka jendela kamar, dan minum segelas air hangat.',
+    reflection: 'Badan terasa sangat segar, pikiran jernih, dan tidak terburu-buru bersiap mengawali kegiatan hari ini.',
     alternatives: [
-      'Bangun pukul 04.45 WIB, merapikan kasur sendiri, lalu menunaikan ibadah Subuh berjamaah di masjid.',
-      'Bangun tepat pukul 05.00 WIB, berdoa mengucap syukur bersama keluarga, dan minum segelas air hangat.',
-      'Bangun pukul 04.30 WIB tanpa perlu dibangunkan orang tua, merapikan kamar, dan beribadah pagi dengan khusyuk.'
+      'Bangun pukul 05.00 WIB dengan alarm sendiri, merapikan kasur dan kamar tidur hingga rapi dan bersih.',
+      'Bangun pagi pukul 05.20 WIB, merapikan kamar, membuka gorden jendela, dan melakukan peregangan ringan.',
+      'Bangun tepat waktu pukul 05.30 WIB dalam kondisi bugar dan bersemangat menyambut aktivitas pagi.'
     ],
-    tips: 'Sebutkan jam bangun tidur, kerapian kamar tidur, dan ibadah atau doa pagi yang kamu lakukan.'
+    tips: 'Batas waktu pengisian 05.00 - 06.00 WIB. Sebutkan jam bangun tidur, kemandirian merapikan kasur/kamar tidur, dan kesegaran fisik yang dirasakan.'
+  },
+  beribadah: {
+    activity: 'Mengambil air wudhu dan menunaikan sholat Subuh berjamaah tepat pukul 04.45 WIB bersama keluarga di masjid terdekat, dilanjutkan membaca doa pagi dan wirid dengan khusyuk.',
+    reflection: 'Hati terasa damai, tenang, bersyukur atas nikmat kehidupan, dan merasa siap belajar dengan bimbingan Tuhan.',
+    alternatives: [
+      'Menunaikan sholat Subuh berjamaah di masjid pukul 04.30 WIB dan membaca ayat suci Al-Qur\'an selama 15 menit setelah sholat.',
+      'Melaksanakan doa pagi dan saat teduh bersama keluarga pukul 05.00 WIB sesuai keyakinan dengan khidmat sebelum beraktivitas.',
+      'Membaca renungan kitab suci pukul 04.45 WIB dan memanjatkan doa memohon kelancaran belajar serta keselamatan bagi keluarga.'
+    ],
+    tips: 'Batas waktu pengisian 04.00 - 05.30 WIB. Tuliskan ibadah atau doa pagi yang kamu laksanakan, pelaksanaan berjamaah/pribadi, dan ketenangan hati.'
   },
   berolahraga: {
     activity: 'Melakukan senam peregangan dan lari santai (jogging) keliling kompleks rumah selama 20 menit bersama adik, dilanjutkan minum air putih yang cukup.',
@@ -68,43 +112,65 @@ export const CONTOH_ISIAN_KEBIASAAN: Record<HabitId, ContohIsian> = {
     ],
     tips: 'Sebutkan jam mematikan gadget, jam mulai tidur, dan persiapan sehat sebelum tidur.'
   },
+  bangun_pagi_ibadah: {
+    activity: 'Bangun pagi dan menunaikan ibadah dengan khusyuk.',
+    reflection: 'Badan segar dan hati tenang.',
+    alternatives: ['Bangun pagi dan berdoa bersama keluarga.'],
+    tips: 'Catat kegiatan bangun pagi dan ibadahmu.'
+  },
   kedisiplinan_umum: {
-    activity: 'Menyiapkan seragam rapi dan menyusun buku pelajaran sesuai jadwal sejak malam hari, serta hadir di sekolah 15 menit sebelum bel apel pagi berbunyi.',
-    reflection: 'Merasa percaya diri, tidak tergesa-gesa, dan dapat mengikuti pembelajaran hari ini dengan tenang dan tertib.',
-    alternatives: [
-      'Menyelesaikan tugas pekerjaan rumah (PR) tepat waktu tanpa menunda-nunda dan merapikan kembali alat tulis ke tas.',
-      'Hadir di kelas pukul 06.45 WIB dengan seragam dan atribut lengkap serta mematuhi tata tertib kelas.',
-      'Merapikan sepeda di tempat parkir sekolah secara teratur dan menjaga barang perlengkapan pribadi agar tidak hilang.'
-    ],
-    tips: 'Tuliskan kedisiplinan yang kamu terapkan, seperti ketepatan waktu datang, seragam lengkap, atau penyelesaian tugas.'
+    activity: 'Menyiapkan seragam rapi dan hadir tepat waktu.',
+    reflection: 'Merasa percaya diri dan disiplin.',
+    alternatives: ['Menyelesaikan tugas sekolah tepat waktu.'],
+    tips: 'Catat kedisiplinan yang kamu lakukan.'
   }
 };
 
 
 export const TUJUH_KEBIASAAN: HabitDefinition[] = [
   {
-    id: 'bangun_pagi_ibadah',
+    id: 'bangun_pagi',
     number: 1,
-    title: 'Bangun Pagi & Beribadah',
-    shortTitle: 'Bangun & Beribadah',
-    description: 'Memulai hari dengan bangun pagi tepat waktu, bersyukur, dan menunaikan ibadah sesuai keyakinan masing-masing.',
+    title: 'Bangun Pagi',
+    shortTitle: 'Bangun Pagi',
+    description: 'Membiasakan diri bangun pagi tepat waktu dengan tubuh bugar, merapikan tempat tidur sendiri, dan bersiap menyambut hari.',
     guidelines: [
-      'Bangun sebelum subuh atau fajar merekah (sekitar pukul 04.30 - 05.00 WIB)',
-      'Merapikan tempat tidur secara mandiri',
-      'Melaksanakan ibadah/doa pagi dengan khusyuk',
-      'Mengawali hari dengan pikiran positif dan senyuman'
+      'Waktu pengisian: Pukul 05.00 - 06.00 WIB',
+      'Merapikan tempat tidur dan melipat selimut secara mandiri',
+      'Membuka ventilasi kamar agar udara segar masuk',
+      'Minum segelas air putih hangat saat bangun tidur'
     ],
-    icon: 'SunMedium',
+    icon: 'Sunrise',
     color: 'from-amber-500 to-orange-500',
     badgeColor: 'bg-amber-100 text-amber-800 border-amber-300',
     bgLight: 'bg-amber-50/70',
     borderColor: 'border-amber-200',
-    suggestedTimes: '04.30 - 05.30 WIB',
-    motivationalQuote: 'Awal pagi yang penuh syukur akan memancarkan energi kebaikan sepanjang hari.'
+    suggestedTimes: '05.00 - 06.00 WIB',
+    motivationalQuote: 'Bangun pagi melatih kemandirian dan menghadirkan kesegaran untuk menyongsong masa depan gemilang.'
+  },
+  {
+    id: 'beribadah',
+    number: 2,
+    title: 'Beribadah',
+    shortTitle: 'Beribadah',
+    description: 'Menjalankan ibadah dan doa pagi sesuai agama dan keyakinan masing-masing dengan khusyuk dan penuh rasa syukur.',
+    guidelines: [
+      'Waktu pengisian: Pukul 04.00 - 05.30 WIB',
+      'Melaksanakan ibadah/sholat/doa pagi tepat waktu',
+      'Membaca kitab suci atau renungan keagamaan',
+      'Mengawali hari dengan rasa syukur dan keikhlasan hati'
+    ],
+    icon: 'Sparkles',
+    color: 'from-sky-500 to-blue-600',
+    badgeColor: 'bg-sky-100 text-sky-800 border-sky-300',
+    bgLight: 'bg-sky-50/70',
+    borderColor: 'border-sky-200',
+    suggestedTimes: '04.00 - 05.30 WIB',
+    motivationalQuote: 'Ibadah dan doa di pagi hari adalah kompas penuntun hati dalam melangkah dan berbuat kebaikan.'
   },
   {
     id: 'berolahraga',
-    number: 2,
+    number: 3,
     title: 'Berolahraga',
     shortTitle: 'Berolahraga',
     description: 'Menjaga kebugaran dan kesehatan tubuh dengan beraktivitas fisik minimal 15-30 menit setiap hari.',
@@ -124,7 +190,7 @@ export const TUJUH_KEBIASAAN: HabitDefinition[] = [
   },
   {
     id: 'makan_sehat',
-    number: 3,
+    number: 4,
     title: 'Makan Makanan Sehat',
     shortTitle: 'Makan Sehat',
     description: 'Membiasakan konsumsi makanan bergizi seimbang (Isi Piringku), buah, sayur, dan air putih serta menghindari jajan sembarangan.',
@@ -145,7 +211,7 @@ export const TUJUH_KEBIASAAN: HabitDefinition[] = [
   },
   {
     id: 'gemar_membaca',
-    number: 4,
+    number: 5,
     title: 'Gemar Membaca',
     shortTitle: 'Gemar Membaca',
     description: 'Menumbuhkan budaya literasi dengan membaca buku ilmu pengetahuan, cerita inspiratif, atau ensiklopedia setiap hari.',
@@ -165,7 +231,7 @@ export const TUJUH_KEBIASAAN: HabitDefinition[] = [
   },
   {
     id: 'bermasyarakat',
-    number: 5,
+    number: 6,
     title: 'Bermasyarakat (Aksi Kebaikan)',
     shortTitle: 'Aksi Kebaikan',
     description: 'Menerapkan empati, kepedulian sosial, tolong-menolong, dan menjaga kerukunan di lingkungan keluarga, sekolah, dan tetangga.',
@@ -185,7 +251,7 @@ export const TUJUH_KEBIASAAN: HabitDefinition[] = [
   },
   {
     id: 'istirahat_tepat',
-    number: 6,
+    number: 7,
     title: 'Istirahat Tepat Waktu',
     shortTitle: 'Istirahat Tepat',
     description: 'Tidur malam tepat waktu dengan durasi cukup (8-9 jam untuk anak) agar tubuh kembali segar di keesokan hari.',
@@ -202,26 +268,6 @@ export const TUJUH_KEBIASAAN: HabitDefinition[] = [
     borderColor: 'border-indigo-200',
     suggestedTimes: '20.30 - 21.00 WIB',
     motivationalQuote: 'Istirahat yang cukup adalah kunci kesegaran fisik dan konsentrasi belajar yang prima.'
-  },
-  {
-    id: 'kedisiplinan_umum',
-    number: 7,
-    title: 'Kedisiplinan Umum',
-    shortTitle: 'Kedisiplinan',
-    description: 'Disiplin mengelola waktu, mengerjakan tugas sekolah tepat waktu, berpakaian rapi, dan bertanggung jawab terhadap perlengkapan diri.',
-    guidelines: [
-      'Menyiapkan seragam dan buku pelajaran malam hari sebelum tidur',
-      'Hadir di sekolah tepat waktu sebelum bel berbunyi',
-      'Menyelesaikan tugas sekolah/PR tanpa menunda-nunda',
-      'Menjaga kerapian barang dan mematuhi tata tertib sekolah'
-    ],
-    icon: 'CheckCircle2',
-    color: 'from-cyan-600 to-blue-700',
-    badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-300',
-    bgLight: 'bg-cyan-50/70',
-    borderColor: 'border-cyan-200',
-    suggestedTimes: 'Sepanjang hari',
-    motivationalQuote: 'Disiplin adalah jembatan emas antara cita-cita mulia dan kenyataan kesuksesan.'
   }
 ];
 

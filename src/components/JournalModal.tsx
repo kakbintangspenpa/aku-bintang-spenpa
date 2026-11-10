@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { HabitDefinition, JournalEntry, HabitId, User } from '../types';
-import { TUJUH_KEBIASAAN, CONTOH_ISIAN_KEBIASAAN } from '../data/constants';
+import { TUJUH_KEBIASAAN, CONTOH_ISIAN_KEBIASAAN, HABIT_TIME_RESTRICTIONS } from '../data/constants';
 import { HabitIcon } from './HabitIcon';
 
 import { storageService } from '../services/storageService';
@@ -13,6 +13,8 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  Lock,
   Camera,
   Trash2,
   ChevronDown,
@@ -72,7 +74,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
   };
 
   const [habitId, setHabitId] = useState<HabitId>(
-    selectedHabit?.id || 'bangun_pagi_ibadah'
+    selectedHabit?.id || 'bangun_pagi'
   );
   const [date, setDate] = useState<string>(getAutoCurrentDate());
   const [time, setTime] = useState<string>(getAutoCurrentTime());
@@ -83,6 +85,31 @@ export const JournalModal: React.FC<JournalModalProps> = ({
   const [photoFileName, setPhotoFileName] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [showGuidelines, setShowGuidelines] = useState<boolean>(false);
+
+  const restriction = HABIT_TIME_RESTRICTIONS[habitId];
+  const isStudent = currentUser.role === 'siswa';
+
+  // Check if current device time is outside the designated allowed window
+  const checkIsOutsideTimeWindow = (): boolean => {
+    if (!restriction) return false;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = restriction.startHour * 60 + restriction.startMinute;
+    const endMinutes = restriction.endHour * 60 + restriction.endMinute;
+    return currentMinutes < startMinutes || currentMinutes > endMinutes;
+  };
+
+  const isOutsideWindow = checkIsOutsideTimeWindow();
+  // Restriction strictly locks "Sudah Dilaksanakan" for students and non-admin/guru
+  const isTimeRestricted = Boolean(
+    restriction && isOutsideWindow && (isStudent || (currentUser.role !== 'admin' && currentUser.role !== 'guru'))
+  );
+
+  useEffect(() => {
+    if (isTimeRestricted && status === 'Sudah Dilaksanakan') {
+      setStatus('Belum Dilaksanakan');
+    }
+  }, [isTimeRestricted, status]);
 
   useEffect(() => {
     if (existingEntry) {
@@ -100,7 +127,21 @@ export const JournalModal: React.FC<JournalModalProps> = ({
       setTime(getAutoCurrentTime());
       setDescription('');
       setReflection('');
-      setStatus('Sudah Dilaksanakan');
+      const r = HABIT_TIME_RESTRICTIONS[selectedHabit.id];
+      if (r) {
+        const now = new Date();
+        const curMins = now.getHours() * 60 + now.getMinutes();
+        const sMins = r.startHour * 60 + r.startMinute;
+        const eMins = r.endHour * 60 + r.endMinute;
+        const out = curMins < sMins || curMins > eMins;
+        if (out && (currentUser.role === 'siswa' || (currentUser.role !== 'admin' && currentUser.role !== 'guru'))) {
+          setStatus('Belum Dilaksanakan');
+        } else {
+          setStatus('Sudah Dilaksanakan');
+        }
+      } else {
+        setStatus('Sudah Dilaksanakan');
+      }
       setPhotoUrl('');
       setPhotoFileName('');
     }
@@ -136,24 +177,33 @@ export const JournalModal: React.FC<JournalModalProps> = ({
   };
 
   const handleSetSamplePhoto = () => {
-    const samplePhotos: Record<HabitId, string> = {
-      bangun_pagi_ibadah: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?w=500&auto=format&fit=crop&q=80',
+    const samplePhotos: Partial<Record<HabitId, string>> = {
+      bangun_pagi: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=500&auto=format&fit=crop&q=80',
+      beribadah: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?w=500&auto=format&fit=crop&q=80',
       berolahraga: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=500&auto=format&fit=crop&q=80',
       makan_sehat: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=80',
       gemar_membaca: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=500&auto=format&fit=crop&q=80',
       bermasyarakat: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=500&auto=format&fit=crop&q=80',
       istirahat_tepat: 'https://images.unsplash.com/photo-1511295742362-92c96b124e52?w=500&auto=format&fit=crop&q=80',
+      bangun_pagi_ibadah: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?w=500&auto=format&fit=crop&q=80',
       kedisiplinan_umum: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=500&auto=format&fit=crop&q=80'
     };
-    setPhotoUrl(samplePhotos[habitId]);
+    const photo = samplePhotos[habitId] || samplePhotos.bangun_pagi!;
+    setPhotoUrl(photo);
     setPhotoFileName(`bukti_${habitId}_hebat.jpg`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isTimeRestricted && status === 'Sudah Dilaksanakan') {
+      setErrorMsg(`Kebiasaan ${restriction?.habitName} hanya dapat dicatat 'Sudah Dilaksanakan' pada pukul ${restriction?.timeWindowLabel}. Saat ini waktu pengisian telah lewat/di luar batas sehingga hanya bisa memilih 'Belum Terlaksana'.`);
+      setStatus('Belum Dilaksanakan');
+      return;
+    }
+
     if (!description.trim()) {
-      setErrorMsg('Harap tuliskan aktivitas yang telah kamu lakukan.');
+      setErrorMsg('Harap tuliskan aktivitas atau alasan yang relevan.');
       return;
     }
 
@@ -243,24 +293,81 @@ export const JournalModal: React.FC<JournalModalProps> = ({
             </div>
           )}
 
+          {/* Time Restriction Alert Banner */}
+          {restriction && isOutsideWindow && (
+            <div className={`p-3.5 rounded-2xl border text-xs flex items-start gap-3 shadow-2xs ${
+              isTimeRestricted
+                ? 'bg-amber-50/95 border-amber-300 text-amber-950'
+                : 'bg-blue-50/95 border-blue-200 text-blue-950'
+            }`}>
+              <div className={`p-2 rounded-xl shrink-0 ${isTimeRestricted ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                {isTimeRestricted ? <Lock className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <span>Batas Waktu Pengisian: {restriction.timeWindowLabel}</span>
+                  {isTimeRestricted ? (
+                    <span className="bg-red-100 text-red-700 border border-red-200 text-[10px] px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> Terkunci
+                    </span>
+                  ) : (
+                    <span className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                      Akses Khusus Guru/Admin
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-700">
+                  {isTimeRestricted ? (
+                    <>
+                      Jurnal kebiasaan <strong>{restriction.habitName}</strong> hanya dapat dicatat dengan status <strong>"Sudah Dilaksanakan"</strong> pada pukul <strong>{restriction.timeWindowLabel}</strong>. Karena saat ini berada di luar rentang waktu tersebut, pengisian dibatasi hanya untuk opsi <strong>"Belum Terlaksana"</strong>.
+                    </>
+                  ) : (
+                    <>
+                      Rentang waktu siswa: <strong>{restriction.timeWindowLabel}</strong>. Sebagai {currentUser.role === 'admin' ? 'Admin' : 'Guru'}, Anda dapat mengubah status ini jika diperlukan.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Status Selection - Big Touch Targets for Mobile */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Status Pelaksanaan Hari Ini:
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                Status Pelaksanaan Hari Ini:
+              </label>
+              {isTimeRestricted && (
+                <span className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Hanya bisa opsi Belum Terlaksana
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setStatus('Sudah Dilaksanakan')}
-                className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all min-h-[44px] active:scale-95 ${
-                  status === 'Sudah Dilaksanakan'
-                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                disabled={isTimeRestricted}
+                onClick={() => {
+                  if (!isTimeRestricted) {
+                    setStatus('Sudah Dilaksanakan');
+                  }
+                }}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all min-h-[44px] ${
+                  isTimeRestricted
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-75'
+                    : status === 'Sudah Dilaksanakan'
+                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm active:scale-95'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 active:scale-95'
                 }`}
+                title={isTimeRestricted ? `Pengisian hanya dibuka pukul ${restriction?.timeWindowLabel}` : undefined}
               >
-                <CheckCircle2 className="w-4 h-4" />
+                {isTimeRestricted ? <Lock className="w-4 h-4 text-slate-400" /> : <CheckCircle2 className="w-4 h-4" />}
                 <span>Sudah Dilaksanakan</span>
+                {isTimeRestricted && (
+                  <span className="text-[9px] py-0.5 px-1 bg-slate-200 text-slate-600 rounded font-semibold ml-0.5">
+                    Terkunci
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -273,13 +380,56 @@ export const JournalModal: React.FC<JournalModalProps> = ({
               >
                 <Clock className="w-4 h-4" />
                 <span>Belum Terlaksana</span>
+                {isTimeRestricted && (
+                  <span className="text-[9px] py-0.5 px-1.5 bg-amber-500 text-white rounded font-semibold ml-0.5">
+                    Tersedia
+                  </span>
+                )}
               </button>
             </div>
+
+            {/* Quick helper reasons when status is Belum Terlaksana */}
+            {status === 'Belum Dilaksanakan' && (
+              <div className="mt-2.5 p-2.5 bg-amber-50/70 rounded-xl border border-amber-200 text-xs space-y-1.5">
+                <span className="text-[10px] font-bold text-amber-900 block">
+                  Pilihan Alasan Belum Terlaksana (Klik untuk mengisi cepat):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(habitId === 'bangun_pagi' ? [
+                    'Bangun lewat jam 06.00 WIB karena tidur larut malam.',
+                    'Kurang enak badan sehingga terbangun terlambat hari ini.',
+                    'Alarm tidak terdengar, besok akan tidur lebih cepat dan pasang alarm.'
+                  ] : habitId === 'beribadah' ? [
+                    'Terlewat waktu ibadah/subuh karena bangun kesiangan.',
+                    'Sedang berhalangan/udzur hari ini.',
+                    'Akan melaksanakan dan mengganti ibadah di waktu berikutnya.'
+                  ] : [
+                    'Belum sempat melaksanakan hari ini.',
+                    'Kondisi kurang memungkinkan hari ini.',
+                    'Akan dilaksanakan pada waktu berikutnya.'
+                  ]).map((reason, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setDescription(reason);
+                        if (!reflection) {
+                          setReflection('Berkomitmen untuk lebih disiplin dan tepat waktu esok hari.');
+                        }
+                      }}
+                      className="text-[10.5px] px-2.5 py-1 rounded-lg bg-white border border-amber-200 hover:border-amber-400 hover:bg-amber-100/70 text-slate-700 hover:text-amber-950 transition-colors cursor-pointer text-left font-medium active:scale-[0.98]"
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Interactive Sample Text Box for Students */}
           {(() => {
-            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi_ibadah'];
+            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi'];
             return (
               <div className="bg-gradient-to-br from-amber-50 via-orange-50/50 to-amber-50/30 border border-amber-200/90 rounded-2xl p-3.5 space-y-2 shadow-2xs">
                 <div className="flex items-center justify-between gap-2">
@@ -342,7 +492,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
 
           {/* Activity Description */}
           {(() => {
-            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi_ibadah'];
+            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi'];
             return (
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -418,7 +568,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
 
           {/* Reflection */}
           {(() => {
-            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi_ibadah'];
+            const contohData = CONTOH_ISIAN_KEBIASAAN[habitId] || CONTOH_ISIAN_KEBIASAAN['bangun_pagi'];
             return (
               <div>
                 <div className="flex items-center justify-between mb-1">

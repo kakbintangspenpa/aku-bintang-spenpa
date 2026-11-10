@@ -1,6 +1,8 @@
 import React from 'react';
 import {
   SunMedium,
+  Sunrise,
+  Sparkles,
   Activity,
   Apple,
   BookOpen,
@@ -17,6 +19,10 @@ interface HabitIconProps extends LucideProps {
 
 export const HabitIcon: React.FC<HabitIconProps> = ({ name, ...props }) => {
   switch (name) {
+    case 'Sunrise':
+      return <Sunrise {...props} />;
+    case 'Sparkles':
+      return <Sparkles {...props} />;
     case 'SunMedium':
       return <SunMedium {...props} />;
     case 'Activity':

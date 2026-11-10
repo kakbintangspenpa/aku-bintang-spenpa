@@ -2,6 +2,7 @@ import {
   User,
   ClassRoom,
   JournalEntry,
+  HabitId,
   TeacherCoaching,
   ParentFeedback,
   AppreciationBadge,
@@ -185,7 +186,23 @@ class StorageService {
 
   // --- Journals ---
   getJournals(): JournalEntry[] {
-    return this.getItem<JournalEntry[]>(STORAGE_KEYS.JOURNALS, INITIAL_JOURNALS);
+    const raw = this.getItem<JournalEntry[]>(STORAGE_KEYS.JOURNALS, INITIAL_JOURNALS);
+    let migrated = false;
+    const clean = raw.map(j => {
+      if ((j.habitId as string) === 'bangun_pagi_ibadah') {
+        migrated = true;
+        return { ...j, habitId: 'bangun_pagi' as HabitId };
+      }
+      if ((j.habitId as string) === 'kedisiplinan_umum') {
+        migrated = true;
+        return { ...j, habitId: 'beribadah' as HabitId };
+      }
+      return j;
+    });
+    if (migrated) {
+      this.saveJournals(clean);
+    }
+    return clean;
   }
 
   saveJournals(journals: JournalEntry[]): void {
