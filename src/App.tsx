@@ -4,7 +4,6 @@ import { authService } from './services/authService';
 import { storageService } from './services/storageService';
 
 // Components
-import { DemoAccountBar } from './components/DemoAccountBar';
 import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
 import { JournalModal } from './components/JournalModal';
@@ -212,13 +211,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 font-sans flex flex-col antialiased selection:bg-red-500 selection:text-white">
-      {/* 1. Quick Demo Switcher Bar */}
-      <DemoAccountBar
-        currentUser={currentUser}
-        onOpenGuide={() => setIsGuideModalOpen(true)}
-      />
-
-      {/* 2. Top Navigation Bar */}
+      {/* 1. Top Navigation Bar */}
       <Navbar
         currentUser={currentUser}
         currentTab={currentTab}

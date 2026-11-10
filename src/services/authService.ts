@@ -1,7 +1,7 @@
 import { User, Role } from '../types';
 import { storageService } from './storageService';
 
-const AUTH_USER_KEY = '7k_auth_session_user';
+const AUTH_USER_KEY = '7k_auth_session_production_v1';
 
 type AuthListener = (user: User | null) => void;
 
@@ -12,13 +12,7 @@ class AuthService {
     try {
       const data = localStorage.getItem(AUTH_USER_KEY);
       if (!data) {
-        // Default to Siswa Bintang Pratama or Admin for instant preview if not set
-        const users = storageService.getUsers();
-        const defaultUser = users.find(u => u.username === 'siswa.bintang') || users[0];
-        if (defaultUser) {
-          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(defaultUser));
-          return defaultUser;
-        }
+        // Mode Produksi Nyata: Seluruh akses wajib melalui halaman login saat tautan dibuka
         return null;
       }
       return JSON.parse(data) as User;
@@ -57,7 +51,10 @@ class AuthService {
     }
 
     const users = storageService.getUsers();
-    const found = users.find(u => u.username.toLowerCase() === cleanUser);
+    const found = users.find(u => 
+      u.username.toLowerCase() === cleanUser || 
+      (cleanUser === 'admin' && u.role === 'admin')
+    );
 
     if (!found) {
       return { success: false, error: 'Username tidak ditemukan dalam sistem.' };
@@ -67,9 +64,8 @@ class AuthService {
       return { success: false, error: 'Akun Anda sedang dinonaktifkan oleh Administrator.' };
     }
 
-    // Default password for all demo accounts is "password123" or matching their password
     const validPassword = found.password || 'password123';
-    if (cleanPass !== validPassword && cleanPass !== 'password123') {
+    if (cleanPass !== validPassword) {
       return { success: false, error: 'Kata sandi yang Anda masukkan salah.' };
     }
 

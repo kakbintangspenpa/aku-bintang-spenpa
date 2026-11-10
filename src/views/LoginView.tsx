@@ -10,9 +10,6 @@ import {
   Eye,
   EyeOff,
   Image as ImageIcon,
-  GraduationCap,
-  UserCheck,
-  HeartHandshake,
   Shield
 } from 'lucide-react';
 
@@ -46,8 +43,8 @@ const SCENIC_WALLPAPERS = [
 ];
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('siswa.bintang');
-  const [password, setPassword] = useState('password123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -60,12 +57,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }, 6500);
     return () => clearInterval(timer);
   }, []);
-
-  const handleQuickFill = (targetUser: string) => {
-    setUsername(targetUser);
-    setPassword('password123');
-    setErrorMsg('');
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,67 +232,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </button>
             </form>
 
-            {/* Quick Demo Switcher (Pilihan Akun Demo Cepat) */}
+            {/* Catatan Keamanan Akun Sekolah Resmi */}
             <div className="pt-3 border-t border-cyan-500/20 text-center space-y-2">
-              <span className="text-[10px] uppercase tracking-wider font-extrabold text-cyan-300/80 block">
-                Pintasan Akun Coba / Demo:
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('siswa.bintang')}
-                  className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                    username === 'siswa.bintang'
-                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-2xs'
-                      : 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                  title="Masuk sebagai Siswa (Bintang)"
-                >
-                  <GraduationCap className="w-3 h-3 text-cyan-400" />
-                  <span>Siswa</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('guru.dewi')}
-                  className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                    username === 'guru.dewi'
-                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-2xs'
-                      : 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                  title="Masuk sebagai Guru (Dewi)"
-                >
-                  <UserCheck className="w-3 h-3 text-blue-400" />
-                  <span>Guru</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('ortu.hendra')}
-                  className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                    username === 'ortu.hendra'
-                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-2xs'
-                      : 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                  title="Masuk sebagai Orang Tua (Hendra)"
-                >
-                  <HeartHandshake className="w-3 h-3 text-amber-400" />
-                  <span>Ortu</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('admin.budi')}
-                  className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                    username === 'admin.budi'
-                      ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-2xs'
-                      : 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                  title="Masuk sebagai Administrator (Budi)"
-                >
-                  <Shield className="w-3 h-3 text-purple-400" />
-                  <span>Admin</span>
-                </button>
+              <div className="flex items-center justify-center gap-1.5 text-cyan-300 text-xs font-bold">
+                <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Portal Resmi 7 Kebiasaan Siswa Hebat</span>
+              </div>
+              <p className="text-[11px] text-cyan-100/75 leading-relaxed max-w-xs mx-auto">
+                Silakan masuk menggunakan username dan kata sandi yang telah didaftarkan oleh sekolah.
+              </p>
+              <div className="pt-1.5 border-t border-slate-800/80">
+                <p className="text-[10px] text-slate-400">
+                  Login Awal Administrator: <span className="text-cyan-300 font-mono bg-slate-900/90 px-1 py-0.5 rounded border border-cyan-500/30">admin</span> / <span className="text-cyan-300 font-mono bg-slate-900/90 px-1 py-0.5 rounded border border-cyan-500/30">password123</span>
+                </p>
               </div>
             </div>
           </div>
