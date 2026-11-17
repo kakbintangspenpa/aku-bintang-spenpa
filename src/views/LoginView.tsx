@@ -244,11 +244,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <p className="text-[11px] text-cyan-100/75 leading-relaxed max-w-xs mx-auto">
                 Silakan masuk menggunakan username dan kata sandi yang telah didaftarkan oleh sekolah.
               </p>
-              <div className="pt-1.5 border-t border-slate-800/80">
-                <p className="text-[10px] text-slate-400">
-                  Login Awal Administrator: <span className="text-cyan-300 font-mono bg-slate-900/90 px-1 py-0.5 rounded border border-cyan-500/30">admin</span> / <span className="text-cyan-300 font-mono bg-slate-900/90 px-1 py-0.5 rounded border border-cyan-500/30">password123</span>
-                </p>
-              </div>
             </div>
           </div>
         </div>
