@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { HabitDefinition, JournalEntry, HabitId, User } from '../types';
-import { TUJUH_KEBIASAAN, CONTOH_ISIAN_KEBIASAAN, HABIT_TIME_RESTRICTIONS } from '../data/constants';
+import { TUJUH_KEBIASAAN, CONTOH_ISIAN_KEBIASAAN } from '../data/constants';
 import { HabitIcon } from './HabitIcon';
 
-import { storageService } from '../services/storageService';
+import { storageService, formatTimeRuleLabel } from '../services/storageService';
 import { googleWebhookService } from '../services/googleWebhookService';
 import { uploadPhotoToSupabase } from '../lib/supabaseClient';
 import {
@@ -89,23 +89,36 @@ export const JournalModal: React.FC<JournalModalProps> = ({
   const [showGuidelines, setShowGuidelines] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const restriction = HABIT_TIME_RESTRICTIONS[habitId];
+  const timeRule = storageService.getHabitTimeRule(habitId);
+  const hasActiveRule = Boolean(timeRule && timeRule.enabled);
+  const timeWindowLabel = timeRule ? formatTimeRuleLabel(timeRule) : '';
+  const currentHabitName =
+    timeRule?.habitName ||
+    TUJUH_KEBIASAAN.find(h => h.id === habitId)?.title ||
+    'Kebiasaan';
+
   const isStudent = currentUser.role === 'siswa';
 
-  // Check if current device time is outside the designated allowed window
-  const checkIsOutsideTimeWindow = (): boolean => {
-    if (!restriction) return false;
+  const isMinutesOutsideRule = (rule: typeof timeRule): boolean => {
+    if (!rule || !rule.enabled) return false;
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const startMinutes = restriction.startHour * 60 + restriction.startMinute;
-    const endMinutes = restriction.endHour * 60 + restriction.endMinute;
-    return currentMinutes < startMinutes || currentMinutes > endMinutes;
+    const startMinutes = rule.startHour * 60 + rule.startMinute;
+    const endMinutes = rule.endHour * 60 + rule.endMinute;
+    if (startMinutes <= endMinutes) {
+      return currentMinutes < startMinutes || currentMinutes > endMinutes;
+    }
+    // Cross-midnight window (e.g. 20:30 - 05:00)
+    return !(currentMinutes >= startMinutes || currentMinutes <= endMinutes);
   };
 
-  const isOutsideWindow = checkIsOutsideTimeWindow();
-  // Restriction strictly locks "Sudah Dilaksanakan" for students and non-admin/guru
+  const isOutsideWindow = isMinutesOutsideRule(timeRule);
+  // Restriction strictly locks "Sudah Dilaksanakan" for students when lockOutsideWindow is true
   const isTimeRestricted = Boolean(
-    restriction && isOutsideWindow && (isStudent || (currentUser.role !== 'admin' && currentUser.role !== 'guru'))
+    hasActiveRule &&
+      timeRule?.lockOutsideWindow &&
+      isOutsideWindow &&
+      (isStudent || (currentUser.role !== 'admin' && currentUser.role !== 'guru'))
   );
 
   useEffect(() => {
@@ -130,18 +143,15 @@ export const JournalModal: React.FC<JournalModalProps> = ({
       setTime(getAutoCurrentTime());
       setDescription('');
       setReflection('');
-      const r = HABIT_TIME_RESTRICTIONS[selectedHabit.id];
-      if (r) {
-        const now = new Date();
-        const curMins = now.getHours() * 60 + now.getMinutes();
-        const sMins = r.startHour * 60 + r.startMinute;
-        const eMins = r.endHour * 60 + r.endMinute;
-        const out = curMins < sMins || curMins > eMins;
-        if (out && (currentUser.role === 'siswa' || (currentUser.role !== 'admin' && currentUser.role !== 'guru'))) {
-          setStatus('Belum Dilaksanakan');
-        } else {
-          setStatus('Sudah Dilaksanakan');
-        }
+      const r = storageService.getHabitTimeRule(selectedHabit.id);
+      const out = isMinutesOutsideRule(r);
+      if (
+        r?.enabled &&
+        r.lockOutsideWindow &&
+        out &&
+        (currentUser.role === 'siswa' || (currentUser.role !== 'admin' && currentUser.role !== 'guru'))
+      ) {
+        setStatus('Belum Dilaksanakan');
       } else {
         setStatus('Sudah Dilaksanakan');
       }
@@ -201,7 +211,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
     if (isSubmitting) return;
 
     if (isTimeRestricted && status === 'Sudah Dilaksanakan') {
-      setErrorMsg(`Kebiasaan ${restriction?.habitName} hanya dapat dicatat 'Sudah Dilaksanakan' pada pukul ${restriction?.timeWindowLabel}. Saat ini waktu pengisian telah lewat/di luar batas sehingga hanya bisa memilih 'Belum Terlaksana'.`);
+      setErrorMsg(`Kebiasaan ${currentHabitName} hanya dapat dicatat 'Sudah Dilaksanakan' pada pukul ${timeWindowLabel}. Saat ini waktu pengisian telah lewat/di luar batas sehingga hanya bisa memilih 'Belum Terlaksana'.`);
       setStatus('Belum Dilaksanakan');
       return;
     }
@@ -332,7 +342,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
           )}
 
           {/* Time Restriction Alert Banner */}
-          {restriction && isOutsideWindow && (
+          {hasActiveRule && isOutsideWindow && (
             <div className={`p-3.5 rounded-2xl border text-xs flex items-start gap-3 shadow-2xs ${
               isTimeRestricted
                 ? 'bg-amber-50/95 border-amber-300 text-amber-950'
@@ -343,25 +353,29 @@ export const JournalModal: React.FC<JournalModalProps> = ({
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 font-bold">
-                  <span>Batas Waktu Pengisian: {restriction.timeWindowLabel}</span>
+                  <span>Batas Waktu Pengisian: {timeWindowLabel}</span>
                   {isTimeRestricted ? (
                     <span className="bg-red-100 text-red-700 border border-red-200 text-[10px] px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1">
                       <Lock className="w-2.5 h-2.5" /> Terkunci
                     </span>
                   ) : (
                     <span className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                      Akses Khusus Guru/Admin
+                      {timeRule?.lockOutsideWindow ? 'Akses Khusus Guru/Admin' : 'Pengingat Jadwal'}
                     </span>
                   )}
                 </div>
                 <p className="text-[11px] leading-relaxed text-slate-700">
                   {isTimeRestricted ? (
                     <>
-                      Jurnal kebiasaan <strong>{restriction.habitName}</strong> hanya dapat dicatat dengan status <strong>"Sudah Dilaksanakan"</strong> pada pukul <strong>{restriction.timeWindowLabel}</strong>. Karena saat ini berada di luar rentang waktu tersebut, pengisian dibatasi hanya untuk opsi <strong>"Belum Terlaksana"</strong>.
+                      Jurnal kebiasaan <strong>{currentHabitName}</strong> hanya dapat dicatat dengan status <strong>"Sudah Dilaksanakan"</strong> pada pukul <strong>{timeWindowLabel}</strong>. Karena saat ini berada di luar rentang waktu tersebut, pengisian dibatasi hanya untuk opsi <strong>"Belum Terlaksana"</strong>.
+                    </>
+                  ) : timeRule?.lockOutsideWindow ? (
+                    <>
+                      Rentang waktu siswa: <strong>{timeWindowLabel}</strong>. Sebagai {currentUser.role === 'admin' ? 'Admin' : 'Guru'}, Anda dapat mengubah status ini jika diperlukan.
                     </>
                   ) : (
                     <>
-                      Rentang waktu siswa: <strong>{restriction.timeWindowLabel}</strong>. Sebagai {currentUser.role === 'admin' ? 'Admin' : 'Guru'}, Anda dapat mengubah status ini jika diperlukan.
+                      Jadwal yang disarankan sekolah: <strong>{timeWindowLabel}</strong>. Anda tetap dapat mencatat status pengisian jurnal sesuai kenyataan hari ini.
                     </>
                   )}
                 </p>
@@ -397,7 +411,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
                     ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm active:scale-95'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 active:scale-95'
                 }`}
-                title={isTimeRestricted ? `Pengisian hanya dibuka pukul ${restriction?.timeWindowLabel}` : undefined}
+                title={isTimeRestricted ? `Pengisian hanya dibuka pukul ${timeWindowLabel}` : undefined}
               >
                 {isTimeRestricted ? <Lock className="w-4 h-4 text-slate-400" /> : <CheckCircle2 className="w-4 h-4" />}
                 <span>Sudah Dilaksanakan</span>

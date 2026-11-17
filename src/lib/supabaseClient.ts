@@ -11,7 +11,8 @@ import {
   HabitId,
   HabitStatus,
   SchoolInfo,
-  InfoCategory
+  InfoCategory,
+  HabitTimeRuleConfig
 } from '../types';
 
 export const SUPABASE_URL =
@@ -341,4 +342,35 @@ export function mapSchoolInfoToDb(info: SchoolInfo) {
     updated_at: info.updatedAt || new Date().toISOString()
   };
 }
+
+export function mapHabitTimeRuleFromDb(row: any): HabitTimeRuleConfig {
+  return {
+    habitId: row.habit_id as HabitId,
+    habitName: row.habit_name || '',
+    enabled: Boolean(row.enabled),
+    startHour: Number(row.start_hour ?? 5),
+    startMinute: Number(row.start_minute ?? 0),
+    endHour: Number(row.end_hour ?? 6),
+    endMinute: Number(row.end_minute ?? 0),
+    timezoneLabel: row.timezone_label ?? 'WIB',
+    lockOutsideWindow: row.lock_outside_window !== false,
+    updatedAt: row.updated_at || new Date().toISOString()
+  };
+}
+
+export function mapHabitTimeRuleToDb(rule: HabitTimeRuleConfig) {
+  return {
+    habit_id: rule.habitId,
+    habit_name: rule.habitName,
+    enabled: Boolean(rule.enabled),
+    start_hour: Number(rule.startHour),
+    start_minute: Number(rule.startMinute),
+    end_hour: Number(rule.endHour),
+    end_minute: Number(rule.endMinute),
+    timezone_label: rule.timezoneLabel ?? 'WIB',
+    lock_outside_window: Boolean(rule.lockOutsideWindow),
+    updated_at: rule.updatedAt || new Date().toISOString()
+  };
+}
+
 

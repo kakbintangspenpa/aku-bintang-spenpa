@@ -3,6 +3,7 @@ import { User, JournalEntry, HabitDefinition, AppreciationBadge, SchoolInfo } fr
 import { TUJUH_KEBIASAAN } from '../data/constants';
 import { HabitCard } from '../components/HabitCard';
 import { SchoolInfoBoard } from '../components/SchoolInfoBoard';
+import { storageService, formatTimeRuleLabel } from '../services/storageService';
 import {
   Sparkles,
   Flame,
@@ -270,13 +271,25 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
           <div className="flex flex-wrap justify-center gap-2.5 sm:gap-3.5">
             {TUJUH_KEBIASAAN.map((habit, idx) => {
               const entry = selectedDateJournals.find(j => j.habitId === habit.id);
+              const rule = storageService.getHabitTimeRule(habit.id);
+              const dynamicHabit = rule
+                ? {
+                    ...habit,
+                    suggestedTimes: rule.enabled
+                      ? formatTimeRuleLabel(rule)
+                      : habit.id === 'bangun_pagi' || habit.id === 'beribadah'
+                      ? 'Sepanjang hari'
+                      : habit.suggestedTimes
+                  }
+                : habit;
+
               return (
                 <div
                   key={habit.id}
                   className="w-[calc(50%-6px)] sm:w-[calc(25%-11px)] lg:w-[calc(14.28%-12px)] flex"
                 >
                   <HabitCard
-                    habit={habit}
+                    habit={dynamicHabit}
                     todayJournal={entry}
                     onOpenJournalModal={onOpenJournalModal}
                     onViewPhoto={onViewPhoto}

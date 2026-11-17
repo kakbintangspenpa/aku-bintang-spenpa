@@ -8,7 +8,8 @@ import {
   AppreciationBadge,
   AuditLog,
   GoogleDriveConfig,
-  SchoolInfo
+  SchoolInfo,
+  HabitTimeRuleConfig
 } from '../types';
 import {
   INITIAL_USERS,
@@ -20,6 +21,7 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_DRIVE_CONFIG
 } from '../data/initialData';
+import { TUJUH_KEBIASAAN, HABIT_TIME_RESTRICTIONS } from '../data/constants';
 import {
   supabase,
   mapUserFromDb,
@@ -37,7 +39,9 @@ import {
   mapAuditLogFromDb,
   mapAuditLogToDb,
   mapSchoolInfoFromDb,
-  mapSchoolInfoToDb
+  mapSchoolInfoToDb,
+  mapHabitTimeRuleFromDb,
+  mapHabitTimeRuleToDb
 } from '../lib/supabaseClient';
 
 const STORAGE_KEYS = {
@@ -49,9 +53,49 @@ const STORAGE_KEYS = {
   BADGES: '7k_badges_v1',
   AUDIT_LOGS: '7k_audit_logs_v1',
   SCHOOL_INFOS: '7k_school_infos_v1',
+  HABIT_TIME_RULES: '7k_habit_time_rules_v1',
   DRIVE_CONFIG: '7k_drive_config_v1',
   CURRENT_USER: '7k_current_user_v1'
 };
+
+export function formatTimeRuleLabel(rule: HabitTimeRuleConfig): string {
+  const sH = String(rule.startHour).padStart(2, '0');
+  const sM = String(rule.startMinute).padStart(2, '0');
+  const eH = String(rule.endHour).padStart(2, '0');
+  const eM = String(rule.endMinute).padStart(2, '0');
+  const tz = rule.timezoneLabel?.trim() ? ` ${rule.timezoneLabel.trim()}` : '';
+  return `${sH}.${sM} - ${eH}.${eM}${tz}`;
+}
+
+export function getDefaultHabitTimeRules(): HabitTimeRuleConfig[] {
+  return TUJUH_KEBIASAAN.map(h => {
+    const preset = HABIT_TIME_RESTRICTIONS[h.id];
+    if (preset) {
+      return {
+        habitId: h.id,
+        habitName: h.title,
+        enabled: true,
+        startHour: preset.startHour,
+        startMinute: preset.startMinute,
+        endHour: preset.endHour,
+        endMinute: preset.endMinute,
+        timezoneLabel: 'WIB',
+        lockOutsideWindow: true
+      };
+    }
+    return {
+      habitId: h.id,
+      habitName: h.title,
+      enabled: false,
+      startHour: 5,
+      startMinute: 0,
+      endHour: 21,
+      endMinute: 0,
+      timezoneLabel: 'WIB',
+      lockOutsideWindow: true
+    };
+  });
+}
 
 let idCounter = 0;
 const generateId = (prefix: string) => {
@@ -73,6 +117,7 @@ class StorageService {
     permissionError: false
   };
   private infoTableMissing = false;
+  private timeRulesTableMissing = false;
 
   subscribeSync(listener: () => void): () => void {
     this.syncListeners.push(listener);
@@ -91,6 +136,10 @@ class StorageService {
 
   getInfoTableMissing(): boolean {
     return this.infoTableMissing;
+  }
+
+  getTimeRulesTableMissing(): boolean {
+    return this.timeRulesTableMissing;
   }
 
   // --- Initialization & Helper ---
@@ -232,6 +281,35 @@ class StorageService {
         // Keep localStorage fallback silently
       }
 
+      // Sync habit_time_rules independently
+      try {
+        const rulesRes = await supabase
+          .from('habit_time_rules')
+          .select('*');
+
+        if (rulesRes.error) {
+          const msg = (rulesRes.error.message || '').toLowerCase();
+          const isMissingTable =
+            rulesRes.error.code === 'PGRST205' ||
+            rulesRes.error.code === '42P01' ||
+            msg.includes('could not find the table') ||
+            msg.includes('does not exist');
+          if (isMissingTable) {
+            this.timeRulesTableMissing = true;
+          }
+        } else if (rulesRes.data) {
+          this.timeRulesTableMissing = false;
+          if (rulesRes.data.length > 0) {
+            const dbMapped = rulesRes.data.map(mapHabitTimeRuleFromDb);
+            const defaults = getDefaultHabitTimeRules();
+            const merged = defaults.map(def => dbMapped.find(r => r.habitId === def.habitId) || def);
+            this.setItem(STORAGE_KEYS.HABIT_TIME_RULES, merged);
+          }
+        }
+      } catch {
+        // Keep localStorage fallback silently
+      }
+
       this.supabaseStatus = {
         connected: true,
         permissionError: false,
@@ -295,6 +373,22 @@ class StorageService {
     void this.runDbWrite(supabase.from('users').upsert(mapUserToDb(newUser), { onConflict: 'id' }));
     this.addAuditLog(actorName, actorRole, 'TAMBAH_PENGGUNA', `Menambahkan pengguna baru: ${newUser.fullName} (${newUser.role})`);
     return newUser;
+  }
+
+  addUsersBulk(newUsersInput: Omit<User, 'id' | 'createdAt'>[], actorName: string, actorRole: any): User[] {
+    if (newUsersInput.length === 0) return [];
+    const existing = this.getUsers();
+    const now = new Date().toISOString();
+    const createdUsers: User[] = newUsersInput.map(u => ({
+      ...u,
+      id: generateId('usr'),
+      createdAt: now
+    }));
+    const combined = [...existing, ...createdUsers];
+    this.saveUsers(combined);
+    void this.runDbWrite(supabase.from('users').upsert(createdUsers.map(mapUserToDb), { onConflict: 'id' }));
+    this.addAuditLog(actorName, actorRole, 'IMPORT_PENGGUNA_MASSAL', `Mengimpor ${createdUsers.length} pengguna baru secara massal melalui file Excel/CSV`);
+    return createdUsers;
   }
 
   updateUser(id: string, updates: Partial<User>, actorName: string, actorRole: any): User | null {
@@ -701,6 +795,69 @@ class StorageService {
       }
     } catch {
       // ignore
+    }
+  }
+
+  // --- Habit Time Rules ---
+  getHabitTimeRules(): HabitTimeRuleConfig[] {
+    const defaults = getDefaultHabitTimeRules();
+    const stored = this.getItem<HabitTimeRuleConfig[]>(STORAGE_KEYS.HABIT_TIME_RULES, []);
+    if (!Array.isArray(stored) || stored.length === 0) {
+      return defaults;
+    }
+    return defaults.map(def => {
+      const match = stored.find(item => item.habitId === def.habitId);
+      return match ? { ...def, ...match, habitName: def.habitName } : def;
+    });
+  }
+
+  getHabitTimeRule(habitId: HabitId): HabitTimeRuleConfig | undefined {
+    return this.getHabitTimeRules().find(r => r.habitId === habitId);
+  }
+
+  saveHabitTimeRules(rules: HabitTimeRuleConfig[], actorName?: string, actorRole?: any): void {
+    const now = new Date().toISOString();
+    const stamped = rules.map(r => ({ ...r, updatedAt: now }));
+    this.setItem(STORAGE_KEYS.HABIT_TIME_RULES, stamped);
+    void this.syncHabitTimeRulesToDb(stamped);
+    if (actorName && actorRole) {
+      const activeLabels = stamped
+        .filter(r => r.enabled)
+        .map(r => `${r.habitName} (${formatTimeRuleLabel(r)})`)
+        .join(', ');
+      this.addAuditLog(
+        actorName,
+        actorRole,
+        'ATUR_BATAS_WAKTU_JURNAL',
+        activeLabels
+          ? `Memperbarui batas waktu pengisian jurnal: ${activeLabels}`
+          : 'Menonaktifkan seluruh pembatasan jam pengisian jurnal (bebas sepanjang hari)'
+      );
+    }
+  }
+
+  resetHabitTimeRules(actorName: string, actorRole: any): HabitTimeRuleConfig[] {
+    const defaults = getDefaultHabitTimeRules();
+    this.saveHabitTimeRules(defaults, actorName, actorRole);
+    return defaults;
+  }
+
+  private async syncHabitTimeRulesToDb(rules: HabitTimeRuleConfig[]): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('habit_time_rules')
+        .upsert(rules.map(mapHabitTimeRuleToDb), { onConflict: 'habit_id' });
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
+        if (error.code === 'PGRST205' || error.code === '42P01' || msg.includes('does not exist') || msg.includes('could not find')) {
+          this.timeRulesTableMissing = true;
+          this.notifySync();
+        }
+      } else {
+        this.timeRulesTableMissing = false;
+      }
+    } catch {
+      // keep local cache
     }
   }
 

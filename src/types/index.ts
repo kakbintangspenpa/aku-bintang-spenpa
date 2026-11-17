@@ -167,3 +167,17 @@ export interface SchoolInfo {
   updatedAt: string;
 }
 
+export interface HabitTimeRuleConfig {
+  habitId: HabitId;
+  habitName: string;
+  enabled: boolean;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+  timezoneLabel: string;
+  lockOutsideWindow: boolean;
+  updatedAt?: string;
+}
+
+

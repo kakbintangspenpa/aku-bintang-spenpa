@@ -10,6 +10,8 @@ import {
 } from '../types';
 import { storageService } from '../services/storageService';
 import { AdminInfoManager } from '../components/AdminInfoManager';
+import { AdminTimeRulesManager } from '../components/AdminTimeRulesManager';
+import { AdminUserExcelModal, exportUsersToExcel } from '../components/AdminUserExcelModal';
 import { googleWebhookService } from '../services/googleWebhookService';
 import { uploadPhotoToSupabase } from '../lib/supabaseClient';
 import { DRIVE_FOLDER_STRUCTURE, SHEETS_SCHEMA } from '../data/constants';
@@ -50,7 +52,8 @@ import {
   AlertCircle,
   X,
   Filter,
-  Megaphone
+  Megaphone,
+  Clock
 } from 'lucide-react';
 
 const ROLE_AVATAR_PRESETS = [
@@ -87,8 +90,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenGuide,
   activeSubTab = 'dashboard'
 }) => {
-  const [adminTab, setAdminTab] = useState<'overview' | 'infos' | 'users' | 'classes' | 'drive' | 'docs' | 'audit'>(
+  const [adminTab, setAdminTab] = useState<'overview' | 'infos' | 'time_rules' | 'users' | 'classes' | 'drive' | 'docs' | 'audit'>(
     activeSubTab === 'infos' ? 'infos' :
+    activeSubTab === 'time_rules' ? 'time_rules' :
     activeSubTab === 'users' ? 'users' :
     activeSubTab === 'classes' ? 'classes' :
     activeSubTab === 'drive_sync' ? 'drive' :
@@ -98,6 +102,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   useEffect(() => {
     if (activeSubTab === 'infos') setAdminTab('infos');
+    else if (activeSubTab === 'time_rules') setAdminTab('time_rules');
     else if (activeSubTab === 'docs') setAdminTab('docs');
     else if (activeSubTab === 'users') setAdminTab('users');
     else if (activeSubTab === 'classes') setAdminTab('classes');
@@ -105,6 +110,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     else if (activeSubTab === 'audit_logs') setAdminTab('audit');
     else if (activeSubTab === 'dashboard') setAdminTab('overview');
   }, [activeSubTab]);
+
+  // Excel Import/Export modal & banner for users
+  const [showUserImportModal, setShowUserImportModal] = useState(false);
+  const [userExcelNotice, setUserExcelNotice] = useState('');
 
   // User form states
   const [showUserModal, setShowUserModal] = useState(false);
@@ -676,6 +685,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <span>Informasi ({schoolInfos.length})</span>
         </button>
         <button
+          onClick={() => setAdminTab('time_rules')}
+          className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === 'time_rules' ? 'bg-purple-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>Batas Waktu Jurnal</span>
+        </button>
+        <button
           onClick={() => setAdminTab('docs')}
           className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
             adminTab === 'docs' ? 'bg-amber-600 text-white shadow-2xs' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
@@ -726,6 +744,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {adminTab === 'infos' && (
         <AdminInfoManager
           infos={schoolInfos}
+          currentUser={currentUser}
+          onRefreshData={onRefreshData}
+        />
+      )}
+
+      {/* BATAS WAKTU PENGISIAN JURNAL TAB */}
+      {adminTab === 'time_rules' && (
+        <AdminTimeRulesManager
           currentUser={currentUser}
           onRefreshData={onRefreshData}
         />
@@ -1412,28 +1438,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="flex flex-wrap items-center gap-2">
               <button
+                type="button"
+                onClick={() => {
+                  exportUsersToExcel(users, classes);
+                  setUserExcelNotice(`Berhasil mengekspor ${users.length} data pengguna ke file Excel (.xlsx).`);
+                  setTimeout(() => setUserExcelNotice(''), 4000);
+                }}
+                className="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 active:scale-95 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                title="Unduh seluruh daftar pengguna dalam format Excel (.xlsx)"
+              >
+                <Download className="w-4 h-4 text-slate-700" />
+                <span>Export Pengguna</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUserImportModal(true)}
+                className="px-3 py-2 text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 active:scale-95 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                title="Import tambah banyak pengguna sekaligus dari file Excel/CSV"
+              >
+                <Upload className="w-4 h-4 text-indigo-700" />
+                <span>Import Pengguna</span>
+              </button>
+              <button
                 onClick={() => handleOpenAddUser('siswa')}
-                className="px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+                className="px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
               >
                 <GraduationCap className="w-4 h-4" />
                 <span>+ Tambah Data Siswa</span>
               </button>
               <button
                 onClick={() => handleOpenAddUser('guru')}
-                className="px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+                className="px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
               >
                 <UserCheck className="w-4 h-4" />
                 <span>+ Tambah Data Guru</span>
               </button>
               <button
                 onClick={() => handleOpenAddUser('orang_tua')}
-                className="px-3 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all"
+                className="px-3 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
               >
                 <HeartHandshake className="w-4 h-4" />
                 <span>+ Tambah Data Orang Tua</span>
               </button>
             </div>
           </div>
+
+          {userExcelNotice && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{userExcelNotice}</span>
+            </div>
+          )}
 
           {/* Filter & Search Bar */}
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
@@ -2996,6 +3051,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Import Pengguna Massal (Excel / CSV) */}
+      <AdminUserExcelModal
+        isOpen={showUserImportModal}
+        onClose={() => setShowUserImportModal(false)}
+        users={users}
+        classes={classes}
+        currentUser={currentUser}
+        onImported={(count) => {
+          onRefreshData();
+          setUserExcelNotice(`Berhasil mengimpor ${count} akun pengguna baru dan menyinkronkannya ke database.`);
+          setTimeout(() => setUserExcelNotice(''), 5000);
+        }}
+      />
     </div>
   );
 };
