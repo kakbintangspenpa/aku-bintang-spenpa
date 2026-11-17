@@ -43,7 +43,12 @@ export const PembinaanModal: React.FC<PembinaanModalProps> = ({
       setNextEvaluationDate(existingCoaching.nextEvaluationDate);
       setFollowUpStatus(existingCoaching.followUpStatus);
     } else {
-      if (preSelectedStudentId) setSiswaId(preSelectedStudentId);
+      if (preSelectedStudentId) {
+        setSiswaId(preSelectedStudentId);
+      } else if (!siswaId || !students.some(s => s.id === siswaId)) {
+        setSiswaId(students[0]?.id || '');
+      }
+      setHabitId('all');
       setDate(new Date().toISOString().split('T')[0]);
       // set next eval to 7 days later
       const nextWeek = new Date();
@@ -54,7 +59,7 @@ export const PembinaanModal: React.FC<PembinaanModalProps> = ({
       setImprovementTarget('');
       setFollowUpStatus('Dalam Proses');
     }
-  }, [isOpen, existingCoaching, preSelectedStudentId]);
+  }, [isOpen, existingCoaching, preSelectedStudentId, students]);
 
   if (!isOpen) return null;
 
@@ -83,7 +88,7 @@ export const PembinaanModal: React.FC<PembinaanModalProps> = ({
       storageService.addCoaching({
         siswaId,
         siswaName: targetStudent.fullName,
-        kelasId: targetStudent.kelasId || 'kelas-5a',
+        kelasId: targetStudent.kelasId || 'kelas-7-1',
         guruId: guruUser.id,
         guruName: guruUser.fullName,
         habitId,
@@ -113,7 +118,7 @@ export const PembinaanModal: React.FC<PembinaanModalProps> = ({
                 {existingCoaching ? 'Edit Catatan Pembinaan' : 'Formulir Pembinaan Karakter Siswa'}
               </h3>
               <p className="text-xs text-emerald-100">
-                Pendekatan apresiatif, edukatif, dan solusi positif
+                Hasil pembinaan langsung terkirim ke halaman akun siswa yang dibina
               </p>
             </div>
           </div>
@@ -253,10 +258,11 @@ export const PembinaanModal: React.FC<PembinaanModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-md shadow-teal-200 flex items-center gap-1.5"
+              disabled={!siswaId || students.length === 0}
+              className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-teal-200 flex items-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Simpan Catatan Pembinaan
+              {existingCoaching ? 'Simpan Perubahan Pembinaan' : 'Kirim & Simpan Pembinaan'}
             </button>
           </div>
         </form>

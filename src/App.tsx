@@ -179,9 +179,11 @@ export default function App() {
             currentUser={currentUser}
             journals={journals}
             badges={badges}
+            coachings={coachings}
             schoolInfos={schoolInfos}
             onOpenJournalModal={handleOpenJournalModal}
             onViewPhoto={handleViewPhoto}
+            onRefreshData={refreshAllData}
             activeSubTab={currentTab}
             onSelectTab={setCurrentTab}
           />
@@ -200,6 +202,7 @@ export default function App() {
             onOpenPembinaanModal={handleOpenPembinaanModal}
             onViewPhoto={handleViewPhoto}
             onOpenReportView={() => setCurrentTab('reports')}
+            onRefreshData={refreshAllData}
             activeSubTab={currentTab}
           />
         );

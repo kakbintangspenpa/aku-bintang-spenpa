@@ -4,11 +4,11 @@ import {
   JournalEntry,
   TeacherCoaching,
   ClassRoom,
-  HabitId,
   SchoolInfo
 } from '../types';
 import { TUJUH_KEBIASAAN } from '../data/constants';
 import { SchoolInfoBoard } from '../components/SchoolInfoBoard';
+import { storageService } from '../services/storageService';
 import {
   Users,
   CheckCircle2,
@@ -20,7 +20,13 @@ import {
   Image as ImageIcon,
   PlusCircle,
   FileSpreadsheet,
-  ChevronRight
+  ChevronRight,
+  Trash2,
+  Edit2,
+  Calendar,
+  Target,
+  Clock,
+  X
 } from 'lucide-react';
 
 interface GuruDashboardProps {
@@ -34,6 +40,7 @@ interface GuruDashboardProps {
   onOpenPembinaanModal: (studentId?: string, existing?: TeacherCoaching) => void;
   onViewPhoto: (url: string, title: string) => void;
   onOpenReportView: () => void;
+  onRefreshData?: () => void;
   activeSubTab?: string;
 }
 
@@ -48,11 +55,15 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   onOpenPembinaanModal,
   onViewPhoto,
   onOpenReportView,
+  onRefreshData,
   activeSubTab = 'dashboard'
 }) => {
   const [filterClass, setFilterClass] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [mobileTab, setMobileTab] = useState<'verifikasi' | 'siswa' | 'pembinaan'>('verifikasi');
+  const [journalViewMode, setJournalViewMode] = useState<'pending' | 'all'>('pending');
+  const [journalToDelete, setJournalToDelete] = useState<JournalEntry | null>(null);
+  const [coachingToDelete, setCoachingToDelete] = useState<TeacherCoaching | null>(null);
 
   const myStudents = students.filter(
     s => s.assignedGuruId === currentUser.id || s.kelasId === currentUser.kelasId
@@ -88,6 +99,36 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   });
 
   const studentsNeedingCoaching = studentAnalysis.filter(s => s.needsCoaching);
+  const sortedMyJournals = [...myJournals].sort(
+    (a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+  );
+  const displayedJournals = journalViewMode === 'pending' ? pendingVerification : sortedMyJournals;
+  const sortedMyCoachings = [...myCoachings].sort(
+    (a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+  );
+
+  const handleMarkCoachingDone = (coaching: TeacherCoaching) => {
+    storageService.updateCoaching(
+      coaching.id,
+      { followUpStatus: 'Tercapai' },
+      currentUser.fullName
+    );
+    onRefreshData?.();
+  };
+
+  const handleConfirmDeleteJournal = () => {
+    if (!journalToDelete) return;
+    storageService.deleteJournal(journalToDelete.id, currentUser.fullName, 'guru');
+    setJournalToDelete(null);
+    onRefreshData?.();
+  };
+
+  const handleConfirmDeleteCoaching = () => {
+    if (!coachingToDelete) return;
+    storageService.deleteCoaching(coachingToDelete.id, currentUser.fullName, 'guru');
+    setCoachingToDelete(null);
+    onRefreshData?.();
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -203,63 +244,114 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
         </button>
       </div>
 
-      {/* 4. Antrean Verifikasi & Apresiasi */}
+      {/* 4. Antrean Verifikasi & Riwayat Catatan Siswa */}
       <div className={`bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 ${
         mobileTab !== 'verifikasi' ? 'hidden sm:block' : ''
       }`}>
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-500" />
             <h3 className="font-bold text-sm text-slate-900">
-              Antrean Verifikasi Jurnal Masuk
+              {journalViewMode === 'pending' ? 'Antrean Verifikasi Jurnal Masuk' : 'Riwayat Catatan Siswa'}
             </h3>
           </div>
-          <span className="text-[11px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
-            {pendingVerification.length} Menunggu
-          </span>
+
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg text-xs">
+            <button
+              type="button"
+              onClick={() => setJournalViewMode('pending')}
+              className={`px-2.5 py-1 rounded-md font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                journalViewMode === 'pending'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Menunggu ({pendingVerification.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setJournalViewMode('all')}
+              className={`px-2.5 py-1 rounded-md font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                journalViewMode === 'all'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Semua Riwayat ({myJournals.length})
+            </button>
+          </div>
         </div>
 
-        {pendingVerification.length === 0 ? (
+        {displayedJournals.length === 0 ? (
           <div className="text-center py-6 text-xs text-slate-400">
-            🎉 Semua jurnal siswa telah diperiksa dan diapresiasi.
+            {journalViewMode === 'pending'
+              ? 'Semua jurnal siswa telah diperiksa dan diapresiasi.'
+              : 'Belum ada riwayat catatan jurnal dari siswa binaan.'}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {pendingVerification.slice(0, 6).map(j => {
+            {displayedJournals.map(j => {
               const habit = TUJUH_KEBIASAAN.find(h => h.id === j.habitId);
               return (
                 <div key={j.id} className="py-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-xs text-slate-900 block">
-                        {j.siswaName}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-bold text-xs text-slate-900">
+                          {j.siswaName}
+                        </span>
+                        <span className="text-slate-300" aria-hidden="true">&middot;</span>
+                        <span className={`text-[11px] font-semibold ${j.guruVerified ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {j.guruVerified ? 'Terverifikasi' : 'Menunggu Verifikasi'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-500 block tabular-nums mt-0.5">
                         {habit?.title || j.habitId} &bull; {j.date} {j.time && `(${j.time})`}
                       </span>
                     </div>
-                    {j.photoUrl && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {j.photoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => onViewPhoto(j.photoUrl!, `${habit?.title} - ${j.siswaName}`)}
+                          className="px-2 py-1 text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center gap-1 border border-blue-200 cursor-pointer"
+                        >
+                          <ImageIcon className="w-3 h-3" />
+                          <span>Foto</span>
+                        </button>
+                      )}
                       <button
-                        onClick={() => onViewPhoto(j.photoUrl!, `${habit?.title} - ${j.siswaName}`)}
-                        className="px-2 py-1 text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center gap-1 border border-blue-200"
+                        type="button"
+                        onClick={() => setJournalToDelete(j)}
+                        className="px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg inline-flex items-center gap-1 border border-rose-200 cursor-pointer"
+                        title="Hapus catatan siswa ini"
                       >
-                        <ImageIcon className="w-3 h-3" />
-                        <span>Foto</span>
+                        <Trash2 className="w-3 h-3" />
+                        <span>Hapus</span>
                       </button>
-                    )}
+                    </div>
                   </div>
 
                   <p className="text-xs text-slate-700 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                     "{j.activityDescription}"
                   </p>
 
-                  <button
-                    onClick={() => onOpenApresiasiModal(j)}
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs"
-                  >
-                    <Award className="w-3.5 h-3.5" />
-                    <span>Periksa & Beri Apresiasi</span>
-                  </button>
+                  {j.guruFeedback && (
+                    <p className="text-[11px] text-blue-800 bg-blue-50/60 px-2.5 py-1.5 rounded-lg border border-blue-100">
+                      <strong>Apresiasi Guru:</strong> "{j.guruFeedback}"
+                    </p>
+                  )}
+
+                  {!j.guruVerified && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenApresiasiModal(j)}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Award className="w-3.5 h-3.5" />
+                      <span>Periksa & Beri Apresiasi</span>
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -395,53 +487,228 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
         </div>
       </div>
 
-      {/* 6. Catatan Pembinaan */}
+      {/* 6. Riwayat Catatan Pembinaan */}
       <div className={`bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 ${
         mobileTab !== 'pembinaan' ? 'hidden sm:block' : ''
       }`}>
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <HeartHandshake className="w-4 h-4 text-teal-600" />
-            <h3 className="font-bold text-sm text-slate-900">
-              Riwayat Catatan Pembinaan ({myCoachings.length})
-            </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <HeartHandshake className="w-4 h-4 text-teal-600" />
+              <h3 className="font-bold text-sm text-slate-900">
+                Riwayat Catatan Pembinaan ({sortedMyCoachings.length})
+              </h3>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Pembinaan otomatis terkirim ke halaman akun siswa yang dibina. Binaan yang telah selesai dapat ditandai selesai atau dihapus.
+            </p>
           </div>
           <button
+            type="button"
             onClick={() => onOpenPembinaanModal()}
-            className="px-2.5 py-1 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg flex items-center gap-1"
+            className="px-3 py-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 self-start sm:self-auto cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>Tambah</span>
+            <span>Tambah Binaan</span>
           </button>
         </div>
 
-        {myCoachings.length === 0 ? (
+        {sortedMyCoachings.length === 0 ? (
           <div className="text-center py-6 text-xs text-slate-400">
-            Belum ada catatan pembinaan tersimpan.
+            Belum ada catatan pembinaan tersimpan. Tekan "Bina" pada siswa atau "Tambah Binaan" untuk mengirim arahan ke akun siswa.
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {myCoachings.map(c => (
-              <div key={c.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900">{c.siswaName}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    c.followUpStatus === 'Tercapai' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {c.followUpStatus}
-                  </span>
+          <div className="divide-y divide-slate-100">
+            {sortedMyCoachings.map(c => {
+              const focusHabit = c.habitId && c.habitId !== 'all'
+                ? TUJUH_KEBIASAAN.find(h => h.id === c.habitId)
+                : null;
+              const isDone = c.followUpStatus === 'Tercapai';
+              const isExtended = c.followUpStatus === 'Perlu Pendampingan Lanjutan';
+
+              return (
+                <div key={c.id} className="py-3.5 first:pt-1 last:pb-1 text-xs space-y-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-bold text-slate-900 text-xs">{c.siswaName}</span>
+                        <span className="text-slate-300" aria-hidden="true">&middot;</span>
+                        <span className="text-[11px] font-medium text-teal-800">
+                          {focusHabit ? `#${focusHabit.number} ${focusHabit.shortTitle}` : 'Semua Kebiasaan'}
+                        </span>
+                        <span className="text-slate-300" aria-hidden="true">&middot;</span>
+                        <span className="text-[11px] text-slate-500 tabular-nums">{c.date}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                        <span className="inline-flex items-center gap-1">
+                          <Target className="w-3 h-3 text-teal-600" />
+                          <span>Target: <strong className="text-slate-700">{c.improvementTarget}</strong></span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 tabular-nums">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>Evaluasi: {c.nextEvaluationDate}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold mr-1 ${
+                          isDone
+                            ? 'text-emerald-700'
+                            : isExtended
+                            ? 'text-rose-700'
+                            : 'text-amber-700'
+                        }`}
+                      >
+                        {isDone ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        ) : isExtended ? (
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        ) : (
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                        )}
+                        <span>{c.followUpStatus}</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => onOpenPembinaanModal(c.siswaId, c)}
+                        className="px-2 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                        title="Edit catatan pembinaan"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
+
+                      {!isDone && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkCoachingDone(c)}
+                          className="px-2 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                          title="Tandai pembinaan selesai (Tercapai)"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Selesai</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setCoachingToDelete(c)}
+                        className="px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                        title="Hapus catatan pembinaan"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong className="text-slate-800">Kendala:</strong> {c.obstacleNotes}
+                  </p>
+                  <div className="text-teal-950 bg-teal-50/80 p-2.5 rounded-xl border border-teal-200/70 font-medium text-[11px] leading-relaxed">
+                    <strong className="text-teal-800">Saran Solusi (Terkirim ke Siswa):</strong> {c.positiveSolutionAdvice}
+                  </div>
                 </div>
-                <p className="text-slate-600">
-                  <strong className="text-slate-700">Kendala:</strong> {c.obstacleNotes}
-                </p>
-                <p className="text-teal-900 bg-teal-50/80 p-2 rounded-lg border border-teal-200/60 font-medium text-[11px]">
-                  💡 <strong>Saran Solusi:</strong> {c.positiveSolutionAdvice}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Modal Konfirmasi Hapus Catatan Jurnal Siswa */}
+      {journalToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                <Trash2 className="w-4 h-4" />
+                <span>Hapus Catatan Siswa?</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setJournalToDelete(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 text-xs text-slate-600 space-y-2">
+              <p>
+                Catatan jurnal milik <strong className="text-slate-900">{journalToDelete.siswaName}</strong> ({journalToDelete.date}) akan dihapus permanen:
+              </p>
+              <p className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-700 italic">
+                "{journalToDelete.activityDescription}"
+              </p>
+            </div>
+            <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setJournalToDelete(null)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteJournal}
+                className="px-3.5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl inline-flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Hapus Catatan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Catatan Pembinaan */}
+      {coachingToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                <Trash2 className="w-4 h-4" />
+                <span>Hapus Catatan Binaan?</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCoachingToDelete(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 text-xs text-slate-600 space-y-2">
+              <p>
+                Catatan pembinaan untuk <strong className="text-slate-900">{coachingToDelete.siswaName}</strong> akan dihapus dari riwayat guru dan halaman akun siswa.
+              </p>
+              <p className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-700">
+                <strong>Target:</strong> {coachingToDelete.improvementTarget}
+              </p>
+            </div>
+            <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCoachingToDelete(null)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCoaching}
+                className="px-3.5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl inline-flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Hapus Binaan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

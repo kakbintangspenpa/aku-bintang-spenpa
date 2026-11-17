@@ -122,6 +122,8 @@ class StorageService {
   private infoPermissionError = false;
   private timeRulesTableMissing = false;
   private timeRulesPermissionError = false;
+  private deletingJournalIds = new Set<string>();
+  private deletingCoachingIds = new Set<string>();
 
   subscribeSync(listener: () => void): () => void {
     this.syncListeners.push(listener);
@@ -248,11 +250,19 @@ class StorageService {
       }
 
       if (journalsRes.data) {
-        this.saveJournals(journalsRes.data.map(mapJournalFromDb));
+        this.saveJournals(
+          journalsRes.data
+            .map(mapJournalFromDb)
+            .filter(j => !this.deletingJournalIds.has(j.id))
+        );
       }
 
       if (coachingsRes.data) {
-        this.saveCoachings(coachingsRes.data.map(mapCoachingFromDb));
+        this.saveCoachings(
+          coachingsRes.data
+            .map(mapCoachingFromDb)
+            .filter(c => !this.deletingCoachingIds.has(c.id))
+        );
       }
 
       if (feedbacksRes.data) {
@@ -647,6 +657,26 @@ class StorageService {
     return true;
   }
 
+  deleteJournal(id: string, actorName: string, actorRole: any): boolean {
+    const journals = this.getJournals();
+    const target = journals.find(j => j.id === id);
+    if (!target) return false;
+    const filtered = journals.filter(j => j.id !== id);
+    this.saveJournals(filtered);
+    this.deletingJournalIds.add(id);
+    void this.runDbWrite(supabase.from('journals').delete().eq('id', id)).finally(() => {
+      this.deletingJournalIds.delete(id);
+    });
+    this.addAuditLog(
+      actorName,
+      actorRole,
+      'HAPUS_JURNAL',
+      `Menghapus catatan jurnal ${target.siswaName} (${target.habitId}, ${target.date})`
+    );
+    this.notifySync();
+    return true;
+  }
+
   // --- Teacher Coaching ---
   getCoachings(): TeacherCoaching[] {
     return this.getItem<TeacherCoaching[]>(STORAGE_KEYS.COACHING, INITIAL_COACHING);
@@ -678,6 +708,27 @@ class StorageService {
     this.saveCoachings(list);
     void this.runDbWrite(supabase.from('teacher_coachings').upsert(mapCoachingToDb(list[idx]), { onConflict: 'id' }));
     this.addAuditLog(actorName, 'guru', 'UPDATE_PEMBINAAN', `Memperbarui status pembinaan siswa ${list[idx].siswaName}`);
+    this.notifySync();
+    return true;
+  }
+
+  deleteCoaching(id: string, actorName: string, actorRole: any): boolean {
+    const list = this.getCoachings();
+    const target = list.find(c => c.id === id);
+    if (!target) return false;
+    const filtered = list.filter(c => c.id !== id);
+    this.saveCoachings(filtered);
+    this.deletingCoachingIds.add(id);
+    void this.runDbWrite(supabase.from('teacher_coachings').delete().eq('id', id)).finally(() => {
+      this.deletingCoachingIds.delete(id);
+    });
+    this.addAuditLog(
+      actorName,
+      actorRole,
+      'HAPUS_PEMBINAAN',
+      `Menghapus catatan pembinaan siswa ${target.siswaName}`
+    );
+    this.notifySync();
     return true;
   }
 
