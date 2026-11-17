@@ -5,10 +5,13 @@ import {
   ClassRoom,
   JournalEntry,
   AuditLog,
-  GoogleDriveConfig
+  GoogleDriveConfig,
+  SchoolInfo
 } from '../types';
 import { storageService } from '../services/storageService';
+import { AdminInfoManager } from '../components/AdminInfoManager';
 import { googleWebhookService } from '../services/googleWebhookService';
+import { uploadPhotoToSupabase } from '../lib/supabaseClient';
 import { DRIVE_FOLDER_STRUCTURE, SHEETS_SCHEMA } from '../data/constants';
 import { GOOGLE_APPS_SCRIPT_CODE } from '../data/googleScriptTemplate';
 import {
@@ -46,7 +49,8 @@ import {
   Mail,
   AlertCircle,
   X,
-  Filter
+  Filter,
+  Megaphone
 } from 'lucide-react';
 
 const ROLE_AVATAR_PRESETS = [
@@ -64,6 +68,7 @@ interface AdminDashboardProps {
   classes: ClassRoom[];
   journals: JournalEntry[];
   auditLogs: AuditLog[];
+  schoolInfos?: SchoolInfo[];
   driveConfig: GoogleDriveConfig;
   onRefreshData: () => void;
   onOpenGuide: () => void;
@@ -76,12 +81,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   classes,
   journals,
   auditLogs,
+  schoolInfos = [],
   driveConfig,
   onRefreshData,
   onOpenGuide,
   activeSubTab = 'dashboard'
 }) => {
-  const [adminTab, setAdminTab] = useState<'overview' | 'users' | 'classes' | 'drive' | 'docs' | 'audit'>(
+  const [adminTab, setAdminTab] = useState<'overview' | 'infos' | 'users' | 'classes' | 'drive' | 'docs' | 'audit'>(
+    activeSubTab === 'infos' ? 'infos' :
     activeSubTab === 'users' ? 'users' :
     activeSubTab === 'classes' ? 'classes' :
     activeSubTab === 'drive_sync' ? 'drive' :
@@ -90,7 +97,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
 
   useEffect(() => {
-    if (activeSubTab === 'docs') setAdminTab('docs');
+    if (activeSubTab === 'infos') setAdminTab('infos');
+    else if (activeSubTab === 'docs') setAdminTab('docs');
     else if (activeSubTab === 'users') setAdminTab('users');
     else if (activeSubTab === 'classes') setAdminTab('classes');
     else if (activeSubTab === 'drive_sync') setAdminTab('drive');
@@ -258,7 +266,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -285,6 +293,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
+    let finalAvatarUrl = avatarUrl.trim();
+    if (finalAvatarUrl && finalAvatarUrl.startsWith('data:image/')) {
+      const uploadedUrl = await uploadPhotoToSupabase(
+        finalAvatarUrl,
+        'avatars',
+        `avatar_${username.trim()}_${Date.now()}.jpg`
+      );
+      if (uploadedUrl) {
+        finalAvatarUrl = uploadedUrl;
+      }
+    }
+
     if (editingUser) {
       storageService.updateUser(
         editingUser.id,
@@ -292,7 +312,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           fullName: fullName.trim(),
           username: username.trim(),
           role,
-          avatarUrl: avatarUrl.trim() || undefined,
+          avatarUrl: finalAvatarUrl || undefined,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           nisn: role === 'siswa' ? nisnNip.trim() : undefined,
@@ -314,7 +334,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           password: userPassword.trim() || 'password123',
           role,
           status: 'active',
-          avatarUrl: avatarUrl.trim() || undefined,
+          avatarUrl: finalAvatarUrl || undefined,
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
           nisn: role === 'siswa' ? nisnNip.trim() : undefined,
@@ -555,6 +575,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span>Tambah Pengguna</span>
             </button>
             <button
+              onClick={() => setAdminTab('infos')}
+              className="px-3 py-2 bg-white/15 hover:bg-white/25 active:scale-95 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Megaphone className="w-4 h-4 text-emerald-300" />
+              <span>Informasi Sekolah</span>
+            </button>
+            <button
               onClick={() => setAdminTab('docs')}
               className="px-3 py-2 bg-white/15 hover:bg-white/25 active:scale-95 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
@@ -640,6 +667,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <span>Aktivitas</span>
         </button>
         <button
+          onClick={() => setAdminTab('infos')}
+          className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+            adminTab === 'infos' ? 'bg-purple-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Megaphone className="w-3.5 h-3.5" />
+          <span>Informasi ({schoolInfos.length})</span>
+        </button>
+        <button
           onClick={() => setAdminTab('docs')}
           className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
             adminTab === 'docs' ? 'bg-amber-600 text-white shadow-2xs' : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
@@ -685,6 +721,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <span>Audit Log ({auditLogs.length})</span>
         </button>
       </div>
+
+      {/* INFORMASI SEKOLAH TAB */}
+      {adminTab === 'infos' && (
+        <AdminInfoManager
+          infos={schoolInfos}
+          currentUser={currentUser}
+          onRefreshData={onRefreshData}
+        />
+      )}
 
       {/* 3. DOKUMENTASI TEKNIS & RANCANGAN SISTEM (Ditempatkan Langsung di Halaman Admin) */}
       {adminTab === 'docs' && (

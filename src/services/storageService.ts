@@ -7,7 +7,8 @@ import {
   ParentFeedback,
   AppreciationBadge,
   AuditLog,
-  GoogleDriveConfig
+  GoogleDriveConfig,
+  SchoolInfo
 } from '../types';
 import {
   INITIAL_USERS,
@@ -19,6 +20,25 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_DRIVE_CONFIG
 } from '../data/initialData';
+import {
+  supabase,
+  mapUserFromDb,
+  mapUserToDb,
+  mapClassFromDb,
+  mapClassToDb,
+  mapJournalFromDb,
+  mapJournalToDb,
+  mapCoachingFromDb,
+  mapCoachingToDb,
+  mapFeedbackFromDb,
+  mapFeedbackToDb,
+  mapBadgeFromDb,
+  mapBadgeToDb,
+  mapAuditLogFromDb,
+  mapAuditLogToDb,
+  mapSchoolInfoFromDb,
+  mapSchoolInfoToDb
+} from '../lib/supabaseClient';
 
 const STORAGE_KEYS = {
   USERS: '7k_users_v1',
@@ -28,6 +48,7 @@ const STORAGE_KEYS = {
   FEEDBACKS: '7k_feedbacks_v1',
   BADGES: '7k_badges_v1',
   AUDIT_LOGS: '7k_audit_logs_v1',
+  SCHOOL_INFOS: '7k_school_infos_v1',
   DRIVE_CONFIG: '7k_drive_config_v1',
   CURRENT_USER: '7k_current_user_v1'
 };
@@ -38,7 +59,40 @@ const generateId = (prefix: string) => {
   return `${prefix}-${Date.now()}-${idCounter}-${Math.random().toString(36).slice(2, 7)}`;
 };
 
+export interface SupabaseSyncStatus {
+  connected: boolean;
+  permissionError: boolean;
+  lastSyncedAt?: string;
+  lastError?: string;
+}
+
 class StorageService {
+  private syncListeners: (() => void)[] = [];
+  private supabaseStatus: SupabaseSyncStatus = {
+    connected: false,
+    permissionError: false
+  };
+  private infoTableMissing = false;
+
+  subscribeSync(listener: () => void): () => void {
+    this.syncListeners.push(listener);
+    return () => {
+      this.syncListeners = this.syncListeners.filter(l => l !== listener);
+    };
+  }
+
+  private notifySync(): void {
+    this.syncListeners.forEach(fn => fn());
+  }
+
+  getSupabaseStatus(): SupabaseSyncStatus {
+    return this.supabaseStatus;
+  }
+
+  getInfoTableMissing(): boolean {
+    return this.infoTableMissing;
+  }
+
   // --- Initialization & Helper ---
   private getItem<T>(key: string, fallback: T): T {
     try {
@@ -55,6 +109,168 @@ class StorageService {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (err) {
       console.error(`Error saving to localStorage [${key}]:`, err);
+    }
+  }
+
+  // --- Full Sync From Supabase ---
+  async syncFromSupabase(): Promise<SupabaseSyncStatus> {
+    try {
+      const [
+        usersRes,
+        classesRes,
+        journalsRes,
+        coachingsRes,
+        feedbacksRes,
+        badgesRes,
+        logsRes
+      ] = await Promise.all([
+        supabase.from('users').select('*').order('created_at', { ascending: true }),
+        supabase.from('classes').select('*').order('id', { ascending: true }),
+        supabase.from('journals').select('*').order('created_at', { ascending: false }),
+        supabase.from('teacher_coachings').select('*').order('created_at', { ascending: false }),
+        supabase.from('parent_feedbacks').select('*').order('created_at', { ascending: false }),
+        supabase.from('appreciation_badges').select('*').order('date', { ascending: false }),
+        supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(200)
+      ]);
+
+      const firstError =
+        usersRes.error ||
+        classesRes.error ||
+        journalsRes.error ||
+        coachingsRes.error ||
+        feedbacksRes.error ||
+        badgesRes.error ||
+        logsRes.error;
+
+      if (firstError) {
+        const isPerm =
+          firstError.code === '42501' ||
+          firstError.message?.toLowerCase().includes('permission denied');
+        this.supabaseStatus = {
+          connected: false,
+          permissionError: isPerm,
+          lastError: firstError.message
+        };
+        this.notifySync();
+        return this.supabaseStatus;
+      }
+
+      // Seed default admin account if Supabase users table is completely empty
+      if (usersRes.data && usersRes.data.length === 0) {
+        const defaultAdmin: User = {
+          id: 'usr-admin-utama',
+          username: 'admin',
+          password: 'password123',
+          fullName: 'Administrator Sekolah',
+          role: 'admin',
+          email: 'admin@sekolah.sch.id',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+        await supabase.from('users').upsert(mapUserToDb(defaultAdmin), { onConflict: 'id' });
+        this.saveUsers([defaultAdmin]);
+      } else if (usersRes.data) {
+        this.saveUsers(usersRes.data.map(mapUserFromDb));
+      }
+
+      // Seed SMP classes (7.1-9.11) into Supabase if classes table is empty
+      if (classesRes.data && classesRes.data.length === 0) {
+        const cleanInitialClasses = INITIAL_CLASSES.map(c => ({
+          ...c,
+          waliKelasId: '',
+          totalSiswa: 0
+        }));
+        await supabase.from('classes').upsert(cleanInitialClasses.map(mapClassToDb), { onConflict: 'id' });
+        this.saveClasses(cleanInitialClasses);
+      } else if (classesRes.data) {
+        this.saveClasses(classesRes.data.map(mapClassFromDb));
+      }
+
+      if (journalsRes.data) {
+        this.saveJournals(journalsRes.data.map(mapJournalFromDb));
+      }
+
+      if (coachingsRes.data) {
+        this.saveCoachings(coachingsRes.data.map(mapCoachingFromDb));
+      }
+
+      if (feedbacksRes.data) {
+        this.setItem(STORAGE_KEYS.FEEDBACKS, feedbacksRes.data.map(mapFeedbackFromDb));
+      }
+
+      if (badgesRes.data) {
+        this.setItem(STORAGE_KEYS.BADGES, badgesRes.data.map(mapBadgeFromDb));
+      }
+
+      if (logsRes.data) {
+        this.setItem(STORAGE_KEYS.AUDIT_LOGS, logsRes.data.map(mapAuditLogFromDb));
+      }
+
+      // Sync school_infos independently so a not-yet-created table never breaks the other 7 tables
+      try {
+        const infosRes = await supabase
+          .from('school_infos')
+          .select('*')
+          .order('is_pinned', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (infosRes.error) {
+          const msg = (infosRes.error.message || '').toLowerCase();
+          const isMissingTable =
+            infosRes.error.code === 'PGRST205' ||
+            infosRes.error.code === '42P01' ||
+            msg.includes('could not find the table') ||
+            msg.includes('does not exist');
+          if (isMissingTable) {
+            this.infoTableMissing = true;
+          }
+        } else if (infosRes.data) {
+          this.infoTableMissing = false;
+          this.saveSchoolInfos(infosRes.data.map(mapSchoolInfoFromDb));
+        }
+      } catch {
+        // Keep localStorage fallback silently
+      }
+
+      this.supabaseStatus = {
+        connected: true,
+        permissionError: false,
+        lastSyncedAt: new Date().toISOString()
+      };
+      this.notifySync();
+      return this.supabaseStatus;
+    } catch (err: any) {
+      this.supabaseStatus = {
+        connected: false,
+        permissionError: false,
+        lastError: err?.message || 'Gagal terhubung ke Supabase'
+      };
+      this.notifySync();
+      return this.supabaseStatus;
+    }
+  }
+
+  private async runDbWrite(op: PromiseLike<{ error: any }>): Promise<void> {
+    try {
+      const { error } = await op;
+      if (error) {
+        const isPerm =
+          error.code === '42501' ||
+          error.message?.toLowerCase().includes('permission denied');
+        this.supabaseStatus = {
+          ...this.supabaseStatus,
+          permissionError: isPerm || this.supabaseStatus.permissionError,
+          lastError: error.message
+        };
+      } else {
+        this.supabaseStatus = {
+          connected: true,
+          permissionError: false,
+          lastSyncedAt: new Date().toISOString()
+        };
+      }
+    } catch (err: any) {
+      console.error('Supabase write failed:', err);
     }
   }
 
@@ -76,6 +292,7 @@ class StorageService {
     };
     users.push(newUser);
     this.saveUsers(users);
+    void this.runDbWrite(supabase.from('users').upsert(mapUserToDb(newUser), { onConflict: 'id' }));
     this.addAuditLog(actorName, actorRole, 'TAMBAH_PENGGUNA', `Menambahkan pengguna baru: ${newUser.fullName} (${newUser.role})`);
     return newUser;
   }
@@ -86,6 +303,7 @@ class StorageService {
     if (idx === -1) return null;
     users[idx] = { ...users[idx], ...updates };
     this.saveUsers(users);
+    void this.runDbWrite(supabase.from('users').upsert(mapUserToDb(users[idx]), { onConflict: 'id' }));
     this.addAuditLog(actorName, actorRole, 'UBAH_PENGGUNA', `Memperbarui akun pengguna: ${users[idx].fullName}`);
     return users[idx];
   }
@@ -96,6 +314,7 @@ class StorageService {
     if (!target) return false;
     const filtered = users.filter(u => u.id !== id);
     this.saveUsers(filtered);
+    void this.runDbWrite(supabase.from('users').delete().eq('id', id));
     this.addAuditLog(actorName, actorRole, 'HAPUS_PENGGUNA', `Menghapus akun pengguna: ${target.fullName}`);
     return true;
   }
@@ -103,9 +322,8 @@ class StorageService {
   // --- Classes ---
   getClasses(): ClassRoom[] {
     const stored = this.getItem<ClassRoom[]>(STORAGE_KEYS.CLASSES, INITIAL_CLASSES);
-    // If user's stored classes only have the old 5a/5b and not 7.1, ensure SMP classes are populated
     const hasSmp = stored.some(c => c.name.includes('7.1') || c.id.includes('7-1'));
-    if (!hasSmp) {
+    if (!hasSmp && stored.length === 0) {
       this.saveClasses(INITIAL_CLASSES);
       return INITIAL_CLASSES;
     }
@@ -124,6 +342,7 @@ class StorageService {
     };
     classes.push(newClass);
     this.saveClasses(classes);
+    void this.runDbWrite(supabase.from('classes').upsert(mapClassToDb(newClass), { onConflict: 'id' }));
     this.addAuditLog(actorName, actorRole, 'TAMBAH_KELAS', `Menambahkan kelas baru: ${newClass.name}`);
     return newClass;
   }
@@ -134,6 +353,7 @@ class StorageService {
     if (idx === -1) return null;
     classes[idx] = { ...classes[idx], ...updates };
     this.saveClasses(classes);
+    void this.runDbWrite(supabase.from('classes').upsert(mapClassToDb(classes[idx]), { onConflict: 'id' }));
     this.addAuditLog(actorName, actorRole, 'UBAH_KELAS', `Memperbarui data kelas: ${classes[idx].name}`);
     return classes[idx];
   }
@@ -144,6 +364,7 @@ class StorageService {
     if (!target) return false;
     const filtered = classes.filter(c => c.id !== id);
     this.saveClasses(filtered);
+    void this.runDbWrite(supabase.from('classes').delete().eq('id', id));
     this.addAuditLog(actorName, actorRole, 'HAPUS_KELAS', `Menghapus kelas: ${target.name}`);
     return true;
   }
@@ -151,6 +372,7 @@ class StorageService {
   generateSMPClasses(gradesToGenerate: number[] = [7, 8, 9], actorName: string = 'Administrator', actorRole: any = 'admin'): { addedCount: number; existingCount: number } {
     const currentClasses = this.getClasses();
     let addedCount = 0;
+    const addedRows: ClassRoom[] = [];
     const newClasses = [...currentClasses];
 
     for (const grade of gradesToGenerate) {
@@ -163,14 +385,16 @@ class StorageService {
         );
 
         if (!alreadyExists) {
-          newClasses.push({
+          const item: ClassRoom = {
             id,
             name: className,
             grade,
             waliKelasId: '',
             totalSiswa: 0,
             academicYear: '2026/2027'
-          });
+          };
+          newClasses.push(item);
+          addedRows.push(item);
           addedCount++;
         }
       }
@@ -178,6 +402,7 @@ class StorageService {
 
     if (addedCount > 0) {
       this.saveClasses(newClasses);
+      void this.runDbWrite(supabase.from('classes').upsert(addedRows.map(mapClassToDb), { onConflict: 'id' }));
       this.addAuditLog(actorName, actorRole, 'TAMBAH_KELAS_MASSAL', `Menambahkan ${addedCount} kelas SMP (${gradesToGenerate.map(g => `${g}.1-${g}.11`).join(', ')})`);
     }
 
@@ -222,6 +447,7 @@ class StorageService {
     };
     journals.unshift(newEntry);
     this.saveJournals(journals);
+    void this.runDbWrite(supabase.from('journals').upsert(mapJournalToDb(newEntry), { onConflict: 'id' }));
     this.addAuditLog(entry.siswaName, 'siswa', 'JURNAL_INPUT', `Mengisi jurnal kebiasaan: ${entry.habitId} (${entry.date})`);
     return newEntry;
   }
@@ -236,6 +462,7 @@ class StorageService {
       updatedAt: new Date().toISOString()
     };
     this.saveJournals(journals);
+    void this.runDbWrite(supabase.from('journals').upsert(mapJournalToDb(journals[idx]), { onConflict: 'id' }));
     if (actorName && actorRole) {
       this.addAuditLog(actorName, actorRole, 'JURNAL_UPDATE', `Memperbarui jurnal ID: ${id}`);
     }
@@ -250,7 +477,9 @@ class StorageService {
     journals[idx].guruFeedback = feedback;
     journals[idx].guruFeedbackAt = new Date().toISOString();
     journals[idx].guruFeedbackBy = guruName;
+    journals[idx].updatedAt = new Date().toISOString();
     this.saveJournals(journals);
+    void this.runDbWrite(supabase.from('journals').upsert(mapJournalToDb(journals[idx]), { onConflict: 'id' }));
     this.addAuditLog(guruName, 'guru', 'VERIFIKASI_JURNAL', `Memberi apresiasi/verifikasi untuk siswa ${journals[idx].siswaName}`);
     return true;
   }
@@ -262,7 +491,9 @@ class StorageService {
     journals[idx].parentAcknowledged = true;
     journals[idx].parentNotes = notes;
     journals[idx].parentAcknowledgedAt = new Date().toISOString();
+    journals[idx].updatedAt = new Date().toISOString();
     this.saveJournals(journals);
+    void this.runDbWrite(supabase.from('journals').upsert(mapJournalToDb(journals[idx]), { onConflict: 'id' }));
     this.addAuditLog(parentName, 'orang_tua', 'TANGGAPAN_ORTU', `Orang tua mengonfirmasi & memberi catatan pada jurnal anak`);
     return true;
   }
@@ -285,6 +516,7 @@ class StorageService {
     };
     list.unshift(newCoaching);
     this.saveCoachings(list);
+    void this.runDbWrite(supabase.from('teacher_coachings').upsert(mapCoachingToDb(newCoaching), { onConflict: 'id' }));
     this.addAuditLog(coaching.guruName, 'guru', 'CATATAN_PEMBINAAN', `Menulis catatan pembinaan untuk siswa ${coaching.siswaName}`);
     return newCoaching;
   }
@@ -295,6 +527,7 @@ class StorageService {
     if (idx === -1) return false;
     list[idx] = { ...list[idx], ...updates };
     this.saveCoachings(list);
+    void this.runDbWrite(supabase.from('teacher_coachings').upsert(mapCoachingToDb(list[idx]), { onConflict: 'id' }));
     this.addAuditLog(actorName, 'guru', 'UPDATE_PEMBINAAN', `Memperbarui status pembinaan siswa ${list[idx].siswaName}`);
     return true;
   }
@@ -313,6 +546,7 @@ class StorageService {
     };
     list.unshift(newFeedback);
     this.setItem(STORAGE_KEYS.FEEDBACKS, list);
+    void this.runDbWrite(supabase.from('parent_feedbacks').upsert(mapFeedbackToDb(newFeedback), { onConflict: 'id' }));
     this.addAuditLog(feedback.parentName, 'orang_tua', 'DUKUNGAN_ORTU', `Mengirim pesan dukungan orang tua untuk siswa ID ${feedback.siswaId}`);
     return newFeedback;
   }
@@ -331,6 +565,7 @@ class StorageService {
     };
     badges.unshift(newBadge);
     this.setItem(STORAGE_KEYS.BADGES, badges);
+    void this.runDbWrite(supabase.from('appreciation_badges').upsert(mapBadgeToDb(newBadge), { onConflict: 'id' }));
     this.addAuditLog(badge.guruName, 'guru', 'BERI_APRESIASI', `Memberikan lencana "${badge.badgeName}" kepada siswa ID ${badge.siswaId}`);
     return newBadge;
   }
@@ -370,9 +605,103 @@ class StorageService {
       timestamp: new Date().toISOString()
     };
     logs.unshift(newLog);
-    // Keep max 200 logs
     if (logs.length > 200) logs.pop();
     this.setItem(STORAGE_KEYS.AUDIT_LOGS, logs);
+    void this.runDbWrite(supabase.from('audit_logs').upsert(mapAuditLogToDb(newLog), { onConflict: 'id' }));
+  }
+
+  // --- School Information / Announcements ---
+  getSchoolInfos(): SchoolInfo[] {
+    return this.getItem<SchoolInfo[]>(STORAGE_KEYS.SCHOOL_INFOS, []);
+  }
+
+  saveSchoolInfos(infos: SchoolInfo[]): void {
+    this.setItem(STORAGE_KEYS.SCHOOL_INFOS, infos);
+  }
+
+  addSchoolInfo(
+    info: Omit<SchoolInfo, 'id' | 'createdAt' | 'updatedAt'>,
+    actorName: string,
+    actorRole: any
+  ): SchoolInfo {
+    const list = this.getSchoolInfos();
+    const now = new Date().toISOString();
+    const newInfo: SchoolInfo = {
+      ...info,
+      targetRoles: info.targetRoles && info.targetRoles.length > 0 ? info.targetRoles : ['siswa', 'guru', 'orang_tua'],
+      id: generateId('inf'),
+      createdAt: now,
+      updatedAt: now
+    };
+    list.unshift(newInfo);
+    this.saveSchoolInfos(list);
+    void this.syncSchoolInfoUpsert(newInfo);
+    this.addAuditLog(actorName, actorRole, 'TAMBAH_INFORMASI', `Menerbitkan informasi sekolah: "${newInfo.title}"`);
+    return newInfo;
+  }
+
+  updateSchoolInfo(
+    id: string,
+    updates: Partial<SchoolInfo>,
+    actorName: string,
+    actorRole: any
+  ): SchoolInfo | null {
+    const list = this.getSchoolInfos();
+    const idx = list.findIndex(item => item.id === id);
+    if (idx === -1) return null;
+    list[idx] = {
+      ...list[idx],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    this.saveSchoolInfos(list);
+    void this.syncSchoolInfoUpsert(list[idx]);
+    this.addAuditLog(actorName, actorRole, 'UBAH_INFORMASI', `Memperbarui informasi sekolah: "${list[idx].title}"`);
+    return list[idx];
+  }
+
+  deleteSchoolInfo(id: string, actorName: string, actorRole: any): boolean {
+    const list = this.getSchoolInfos();
+    const target = list.find(item => item.id === id);
+    if (!target) return false;
+    const filtered = list.filter(item => item.id !== id);
+    this.saveSchoolInfos(filtered);
+    void this.syncSchoolInfoDelete(id);
+    this.addAuditLog(actorName, actorRole, 'HAPUS_INFORMASI', `Menghapus informasi sekolah: "${target.title}"`);
+    return true;
+  }
+
+  private async syncSchoolInfoUpsert(info: SchoolInfo): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('school_infos')
+        .upsert(mapSchoolInfoToDb(info), { onConflict: 'id' });
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
+        if (error.code === 'PGRST205' || error.code === '42P01' || msg.includes('does not exist') || msg.includes('could not find')) {
+          this.infoTableMissing = true;
+          this.notifySync();
+        }
+      } else {
+        this.infoTableMissing = false;
+      }
+    } catch {
+      // ignore network failure; localStorage cache keeps data
+    }
+  }
+
+  private async syncSchoolInfoDelete(id: string): Promise<void> {
+    try {
+      const { error } = await supabase.from('school_infos').delete().eq('id', id);
+      if (error) {
+        const msg = (error.message || '').toLowerCase();
+        if (error.code === 'PGRST205' || error.code === '42P01' || msg.includes('does not exist') || msg.includes('could not find')) {
+          this.infoTableMissing = true;
+        }
+      }
+    } catch {
+      // ignore
+    }
   }
 
   // --- Google Drive & Sheets Config ---
@@ -404,6 +733,7 @@ class StorageService {
         feedbacks: this.getFeedbacks(),
         badges: this.getBadges(),
         auditLogs: this.getAuditLogs(),
+        schoolInfos: this.getSchoolInfos(),
         driveConfig: this.getDriveConfig()
       }
     };
@@ -416,7 +746,7 @@ class StorageService {
       if (!parsed.data) {
         return { success: false, message: 'Format berkas cadangan tidak valid: properti data tidak ditemukan.' };
       }
-      const { users, classes, journals, coachings, feedbacks, badges, auditLogs, driveConfig } = parsed.data;
+      const { users, classes, journals, coachings, feedbacks, badges, auditLogs, schoolInfos, driveConfig } = parsed.data;
       if (users) this.setItem(STORAGE_KEYS.USERS, users);
       if (classes) this.setItem(STORAGE_KEYS.CLASSES, classes);
       if (journals) this.setItem(STORAGE_KEYS.JOURNALS, journals);
@@ -424,6 +754,7 @@ class StorageService {
       if (feedbacks) this.setItem(STORAGE_KEYS.FEEDBACKS, feedbacks);
       if (badges) this.setItem(STORAGE_KEYS.BADGES, badges);
       if (auditLogs) this.setItem(STORAGE_KEYS.AUDIT_LOGS, auditLogs);
+      if (schoolInfos) this.setItem(STORAGE_KEYS.SCHOOL_INFOS, schoolInfos);
       if (driveConfig) this.setItem(STORAGE_KEYS.DRIVE_CONFIG, driveConfig);
 
       this.addAuditLog('Admin', 'admin', 'RESTORE_DATABASE', 'Memulihkan data sistem dari berkas cadangan JSON');

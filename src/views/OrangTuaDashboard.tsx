@@ -3,10 +3,12 @@ import {
   User,
   JournalEntry,
   TeacherCoaching,
-  ParentFeedback
+  ParentFeedback,
+  SchoolInfo
 } from '../types';
 import { TUJUH_KEBIASAAN } from '../data/constants';
 import { HabitIcon } from '../components/HabitIcon';
+import { SchoolInfoBoard } from '../components/SchoolInfoBoard';
 import {
   Heart,
   Calendar,
@@ -26,6 +28,7 @@ interface OrangTuaDashboardProps {
   journals: JournalEntry[];
   coachings: TeacherCoaching[];
   feedbacks: ParentFeedback[];
+  schoolInfos?: SchoolInfo[];
   onOpenParentFeedbackModal: (childUser: User) => void;
   onViewPhoto: (url: string, title: string) => void;
   onOpenReportView: () => void;
@@ -38,6 +41,7 @@ export const OrangTuaDashboard: React.FC<OrangTuaDashboardProps> = ({
   journals,
   coachings,
   feedbacks,
+  schoolInfos = [],
   onOpenParentFeedbackModal,
   onViewPhoto,
   onOpenReportView,
@@ -120,6 +124,9 @@ export const OrangTuaDashboard: React.FC<OrangTuaDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Papan Informasi Sekolah */}
+      <SchoolInfoBoard infos={schoolInfos} role="orang_tua" />
 
       {!activeChild ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center text-xs text-slate-500">

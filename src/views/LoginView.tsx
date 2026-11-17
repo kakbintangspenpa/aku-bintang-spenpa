@@ -58,20 +58,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg('');
 
-    setTimeout(() => {
-      const res = authService.login(username.trim(), password);
-      setIsLoading(false);
+    try {
+      const res = await authService.login(username.trim(), password);
       if (res.success) {
         onLoginSuccess();
       } else {
         setErrorMsg(res.error || 'Username atau kata sandi tidak sesuai. Silakan coba lagi.');
       }
-    }, 350);
+    } catch {
+      setErrorMsg('Terjadi gangguan koneksi saat masuk. Silakan coba lagi.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -151,3 +151,19 @@ export interface ReportFilter {
   startDate: string;
   endDate: string;
 }
+
+export type InfoCategory = 'pengumuman' | 'penting' | 'kegiatan' | 'imbauan';
+
+export interface SchoolInfo {
+  id: string;
+  title: string;
+  content: string;
+  category: InfoCategory;
+  targetRoles: Role[];
+  isActive: boolean;
+  isPinned: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, JournalEntry, HabitDefinition, AppreciationBadge } from '../types';
+import { User, JournalEntry, HabitDefinition, AppreciationBadge, SchoolInfo } from '../types';
 import { TUJUH_KEBIASAAN } from '../data/constants';
 import { HabitCard } from '../components/HabitCard';
+import { SchoolInfoBoard } from '../components/SchoolInfoBoard';
 import {
   Sparkles,
   Flame,
@@ -22,6 +23,7 @@ interface SiswaDashboardProps {
   currentUser: User;
   journals: JournalEntry[];
   badges: AppreciationBadge[];
+  schoolInfos?: SchoolInfo[];
   onOpenJournalModal: (habit?: HabitDefinition, existing?: JournalEntry) => void;
   onViewPhoto: (url: string, title: string) => void;
   activeSubTab?: string;
@@ -32,6 +34,7 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
   currentUser,
   journals,
   badges,
+  schoolInfos = [],
   onOpenJournalModal,
   onViewPhoto,
   activeSubTab = 'dashboard',
@@ -241,6 +244,10 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
         </div>
       )}
 
+      {/* Papan Informasi Sekolah */}
+      {isDashboardTab && (
+        <SchoolInfoBoard infos={schoolInfos} role="siswa" />
+      )}
 
       {/* 3. The 7 Habits List / Grid */}
       {isDashboardTab && (

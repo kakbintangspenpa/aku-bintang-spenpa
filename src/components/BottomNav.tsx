@@ -11,7 +11,8 @@ import {
   Layers,
   HardDrive,
   ListTodo,
-  BookOpen
+  BookOpen,
+  Megaphone
 } from 'lucide-react';
 
 interface BottomNavProps {
@@ -48,7 +49,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       case 'admin':
         return [
           { id: 'dashboard', label: 'Beranda', icon: Home },
-          { id: 'docs', label: 'Arsitektur', icon: BookOpen },
+          { id: 'infos', label: 'Informasi', icon: Megaphone },
           { id: 'users', label: 'Pengguna', icon: Users },
           { id: 'drive_sync', label: 'Drive', icon: HardDrive },
           { id: 'reports', label: 'Laporan', icon: FileText }

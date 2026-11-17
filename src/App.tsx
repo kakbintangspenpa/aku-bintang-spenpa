@@ -33,6 +33,7 @@ export default function App() {
   const [feedbacks, setFeedbacks] = useState(storageService.getFeedbacks());
   const [badges, setBadges] = useState(storageService.getBadges());
   const [auditLogs, setAuditLogs] = useState(storageService.getAuditLogs());
+  const [schoolInfos, setSchoolInfos] = useState(storageService.getSchoolInfos());
   const [driveConfig, setDriveConfig] = useState(storageService.getDriveConfig());
 
   // Modal states
@@ -56,15 +57,6 @@ export default function App() {
 
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
 
-  // Subscribe to auth session changes
-  useEffect(() => {
-    const unsubscribe = authService.subscribe((user) => {
-      setCurrentUser(user);
-      setCurrentTab('dashboard');
-    });
-    return () => unsubscribe();
-  }, []);
-
   const refreshAllData = () => {
     setUsers(storageService.getUsers());
     setClasses(storageService.getClasses());
@@ -73,8 +65,44 @@ export default function App() {
     setFeedbacks(storageService.getFeedbacks());
     setBadges(storageService.getBadges());
     setAuditLogs(storageService.getAuditLogs());
+    setSchoolInfos(storageService.getSchoolInfos());
     setDriveConfig(storageService.getDriveConfig());
   };
+
+  // Subscribe to auth session changes & Supabase sync
+  useEffect(() => {
+    const unsubscribeAuth = authService.subscribe((user) => {
+      setCurrentUser(user);
+      setCurrentTab('dashboard');
+      if (user) {
+        void storageService.syncFromSupabase();
+      }
+    });
+
+    const unsubscribeSync = storageService.subscribeSync(() => {
+      refreshAllData();
+    });
+
+    void storageService.syncFromSupabase();
+
+    const handleFocus = () => {
+      void storageService.syncFromSupabase();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    const interval = setInterval(() => {
+      if (authService.getCurrentUser()) {
+        void storageService.syncFromSupabase();
+      }
+    }, 30000);
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeSync();
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Open Journal modal
   const handleOpenJournalModal = (habit?: HabitDefinition, existing?: JournalEntry) => {
@@ -151,6 +179,7 @@ export default function App() {
             currentUser={currentUser}
             journals={journals}
             badges={badges}
+            schoolInfos={schoolInfos}
             onOpenJournalModal={handleOpenJournalModal}
             onViewPhoto={handleViewPhoto}
             activeSubTab={currentTab}
@@ -166,6 +195,7 @@ export default function App() {
             classes={classes}
             journals={journals}
             coachings={coachings}
+            schoolInfos={schoolInfos}
             onOpenApresiasiModal={handleOpenApresiasiModal}
             onOpenPembinaanModal={handleOpenPembinaanModal}
             onViewPhoto={handleViewPhoto}
@@ -182,6 +212,7 @@ export default function App() {
             journals={journals}
             coachings={coachings}
             feedbacks={feedbacks}
+            schoolInfos={schoolInfos}
             onOpenParentFeedbackModal={handleOpenParentFeedbackModal}
             onViewPhoto={handleViewPhoto}
             onOpenReportView={() => setCurrentTab('reports')}
@@ -197,6 +228,7 @@ export default function App() {
             classes={classes}
             journals={journals}
             auditLogs={auditLogs}
+            schoolInfos={schoolInfos}
             driveConfig={driveConfig}
             onRefreshData={refreshAllData}
             onOpenGuide={() => setIsGuideModalOpen(true)}

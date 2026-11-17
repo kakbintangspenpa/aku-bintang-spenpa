@@ -1,5 +1,6 @@
 import { User, Role } from '../types';
 import { storageService } from './storageService';
+import { supabase, mapUserFromDb } from '../lib/supabaseClient';
 
 const AUTH_USER_KEY = '7k_auth_session_production_v1';
 
@@ -42,7 +43,7 @@ class AuthService {
     this.listeners.forEach(fn => fn(user));
   }
 
-  login(username: string, password: string): { success: boolean; user?: User; error?: string } {
+  async login(username: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
     const cleanUser = username.trim().toLowerCase();
     const cleanPass = password.trim();
 
@@ -50,11 +51,34 @@ class AuthService {
       return { success: false, error: 'Username dan kata sandi wajib diisi.' };
     }
 
-    const users = storageService.getUsers();
-    const found = users.find(u => 
-      u.username.toLowerCase() === cleanUser || 
-      (cleanUser === 'admin' && u.role === 'admin')
-    );
+    let found: User | undefined;
+
+    // 1. Cari akun terbaru langsung di database Supabase
+    try {
+      const { data: dbUsers, error } = await supabase
+        .from('users')
+        .select('*');
+
+      if (!error && Array.isArray(dbUsers)) {
+        const mapped = dbUsers.map(mapUserFromDb);
+        if (mapped.length > 0) {
+          storageService.saveUsers(mapped);
+        }
+        found = mapped.find(
+          u => u.username.toLowerCase() === cleanUser || (cleanUser === 'admin' && u.role === 'admin')
+        );
+      }
+    } catch (err) {
+      console.warn('Fallback ke cache lokal saat login:', err);
+    }
+
+    // 2. Fallback ke data lokal jika Supabase belum diberi hak akses atau offline
+    if (!found) {
+      const localUsers = storageService.getUsers();
+      found = localUsers.find(
+        u => u.username.toLowerCase() === cleanUser || (cleanUser === 'admin' && u.role === 'admin')
+      );
+    }
 
     if (!found) {
       return { success: false, error: 'Username tidak ditemukan dalam sistem.' };
@@ -69,14 +93,26 @@ class AuthService {
       return { success: false, error: 'Kata sandi yang Anda masukkan salah.' };
     }
 
-    // Update last login
-    const updated = storageService.updateUser(found.id, {
-      lastLogin: new Date().toISOString()
-    }, found.fullName, found.role);
+    // Update last login & sinkronkan seluruh database terbaru
+    const updated = storageService.updateUser(
+      found.id,
+      { lastLogin: new Date().toISOString() },
+      found.fullName,
+      found.role
+    );
 
     const sessionUser = updated || found;
     this.setCurrentUser(sessionUser);
-    storageService.addAuditLog(sessionUser.fullName, sessionUser.role, 'LOGIN_SUKSES', `Pengguna berhasil login ke sistem sebagai ${sessionUser.role}`);
+    storageService.addAuditLog(
+      sessionUser.fullName,
+      sessionUser.role,
+      'LOGIN_SUKSES',
+      `Pengguna berhasil login ke sistem sebagai ${sessionUser.role}`
+    );
+
+    // Sinkronisasi penuh dari Supabase setelah login berhasil
+    void storageService.syncFromSupabase();
+
     return { success: true, user: sessionUser };
   }
 
@@ -88,7 +124,7 @@ class AuthService {
     }
     if (target) {
       this.setCurrentUser(target);
-      storageService.addAuditLog(target.fullName, target.role, 'DEMO_SWITCH', `Beralih peran demo ke: ${role.toUpperCase()}`);
+      storageService.addAuditLog(target.fullName, target.role, 'DEMO_SWITCH', `Beralih peran ke: ${role.toUpperCase()}`);
       return target;
     }
     return null;

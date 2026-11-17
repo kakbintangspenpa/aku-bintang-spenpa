@@ -45,10 +45,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'admin':
         return [
           { id: 'dashboard', label: 'Ringkasan' },
-          { id: 'docs', label: 'Arsitektur & Drive' },
+          { id: 'infos', label: 'Informasi' },
           { id: 'users', label: 'Pengguna' },
           { id: 'classes', label: 'Kelas' },
-          { id: 'drive_sync', label: 'Koneksi Webhook' },
+          { id: 'docs', label: 'Arsitektur & Drive' },
           { id: 'reports', label: 'Laporan' }
         ];
       case 'guru':

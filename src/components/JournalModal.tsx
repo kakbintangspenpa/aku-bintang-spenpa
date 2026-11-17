@@ -6,6 +6,7 @@ import { HabitIcon } from './HabitIcon';
 
 import { storageService } from '../services/storageService';
 import { googleWebhookService } from '../services/googleWebhookService';
+import { uploadPhotoToSupabase } from '../lib/supabaseClient';
 import {
   X,
   Upload,
@@ -86,6 +87,7 @@ export const JournalModal: React.FC<JournalModalProps> = ({
   const [photoFileName, setPhotoFileName] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [showGuidelines, setShowGuidelines] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const restriction = HABIT_TIME_RESTRICTIONS[habitId];
   const isStudent = currentUser.role === 'siswa';
@@ -194,8 +196,9 @@ export const JournalModal: React.FC<JournalModalProps> = ({
     setPhotoFileName(`bukti_${habitId}_hebat.jpg`);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (isTimeRestricted && status === 'Sudah Dilaksanakan') {
       setErrorMsg(`Kebiasaan ${restriction?.habitName} hanya dapat dicatat 'Sudah Dilaksanakan' pada pukul ${restriction?.timeWindowLabel}. Saat ini waktu pengisian telah lewat/di luar batas sehingga hanya bisa memilih 'Belum Terlaksana'.`);
@@ -208,70 +211,87 @@ export const JournalModal: React.FC<JournalModalProps> = ({
       return;
     }
 
-    let savedEntry: JournalEntry;
-    if (existingEntry) {
-      savedEntry = storageService.updateJournal(
-        existingEntry.id,
-        {
+    setIsSubmitting(true);
+    setErrorMsg('');
+
+    try {
+      // Upload photo to Supabase Storage (`dokumentasi-siswa`) if it's a newly selected image
+      let finalPhotoUrl = photoUrl;
+      if (photoUrl && photoUrl.startsWith('data:image/')) {
+        const uploadedUrl = await uploadPhotoToSupabase(
+          photoUrl,
+          `jurnal/${currentUser.id}`,
+          photoFileName || `bukti_${habitId}_${Date.now()}.jpg`
+        );
+        if (uploadedUrl) {
+          finalPhotoUrl = uploadedUrl;
+        }
+      }
+
+      let savedEntry: JournalEntry;
+      if (existingEntry) {
+        savedEntry = storageService.updateJournal(
+          existingEntry.id,
+          {
+            habitId,
+            date,
+            time,
+            activityDescription: description.trim(),
+            reflection: reflection.trim(),
+            status,
+            photoUrl: finalPhotoUrl || undefined,
+            photoFileName: photoFileName || undefined
+          },
+          currentUser.fullName,
+          currentUser.role
+        ) || existingEntry;
+      } else {
+        savedEntry = storageService.addJournal({
+          siswaId: currentUser.id,
+          siswaName: currentUser.fullName,
+          kelasId: currentUser.kelasId || 'kelas-7-1',
           habitId,
           date,
           time,
           activityDescription: description.trim(),
           reflection: reflection.trim(),
           status,
-          photoUrl: photoUrl || undefined,
-          photoFileName: photoFileName || undefined
-        },
-        currentUser.fullName,
-        currentUser.role
-      ) || existingEntry;
-    } else {
-      savedEntry = storageService.addJournal({
-        siswaId: currentUser.id,
-        siswaName: currentUser.fullName,
-        kelasId: currentUser.kelasId || 'kelas-5a',
-        habitId,
-        date,
-        time,
-        activityDescription: description.trim(),
-        reflection: reflection.trim(),
-        status,
-        photoUrl: photoUrl || undefined,
-        photoFileName: photoFileName || undefined,
-        photoDriveFileId: photoUrl ? `DRIVE_${Date.now()}` : undefined
-      });
-    }
-
-    // Kirim langsung ke Google Drive & Sheets jika Webhook URL telah disetel oleh Admin
-    const driveConfig = storageService.getDriveConfig();
-    if (driveConfig?.sheetWebhookUrl) {
-      // 1. Kirim data jurnal ke Google Spreadsheet (TB_JURNAL_HARIAN)
-      googleWebhookService.recordJournal(driveConfig.sheetWebhookUrl, savedEntry);
-
-      // 2. Jika ada foto bukti, kirim foto ke folder Google Drive DOKUMENTASI-SISWA
-      if (photoUrl) {
-        googleWebhookService.uploadPhoto(
-          driveConfig.sheetWebhookUrl,
-          photoUrl,
-          photoFileName || `bukti_${habitId}_${Date.now()}.jpg`
-        );
-      }
-    }
-
-    if (status === 'Sudah Dilaksanakan') {
-      try {
-        confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.6 }
+          photoUrl: finalPhotoUrl || undefined,
+          photoFileName: photoFileName || undefined,
+          photoDriveFileId: finalPhotoUrl ? `DRIVE_${Date.now()}` : undefined
         });
-      } catch {
-        // Fallback
       }
-    }
 
-    onSaved();
-    onClose();
+      // Kirim langsung ke Google Drive & Sheets jika Webhook URL telah disetel oleh Admin
+      const driveConfig = storageService.getDriveConfig();
+      if (driveConfig?.sheetWebhookUrl) {
+        googleWebhookService.recordJournal(driveConfig.sheetWebhookUrl, savedEntry);
+        if (photoUrl) {
+          googleWebhookService.uploadPhoto(
+            driveConfig.sheetWebhookUrl,
+            photoUrl,
+            photoFileName || `bukti_${habitId}_${Date.now()}.jpg`
+          );
+        }
+      }
+
+      if (status === 'Sudah Dilaksanakan') {
+        try {
+          confetti({
+            particleCount: 70,
+            spread: 60,
+            origin: { y: 0.6 }
+          });
+        } catch {
+          // Fallback
+        }
+      }
+
+      onSaved();
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -700,10 +720,20 @@ export const JournalModal: React.FC<JournalModalProps> = ({
           </button>
           <button
             onClick={handleSubmit}
-            className="flex-2 sm:flex-initial py-2.5 px-5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold text-xs rounded-xl shadow-md shadow-red-200 flex items-center justify-center gap-1.5 active:scale-95"
+            disabled={isSubmitting}
+            className="flex-2 sm:flex-initial py-2.5 px-5 bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold text-xs rounded-xl shadow-md shadow-red-200 flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-60"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>Simpan Jurnal</span>
+            {isSubmitting ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Simpan Jurnal</span>
+              </>
+            )}
           </button>
         </div>
       </div>

@@ -4,9 +4,11 @@ import {
   JournalEntry,
   TeacherCoaching,
   ClassRoom,
-  HabitId
+  HabitId,
+  SchoolInfo
 } from '../types';
 import { TUJUH_KEBIASAAN } from '../data/constants';
+import { SchoolInfoBoard } from '../components/SchoolInfoBoard';
 import {
   Users,
   CheckCircle2,
@@ -27,6 +29,7 @@ interface GuruDashboardProps {
   classes: ClassRoom[];
   journals: JournalEntry[];
   coachings: TeacherCoaching[];
+  schoolInfos?: SchoolInfo[];
   onOpenApresiasiModal: (journal: JournalEntry) => void;
   onOpenPembinaanModal: (studentId?: string, existing?: TeacherCoaching) => void;
   onViewPhoto: (url: string, title: string) => void;
@@ -40,6 +43,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   classes,
   journals,
   coachings,
+  schoolInfos = [],
   onOpenApresiasiModal,
   onOpenPembinaanModal,
   onViewPhoto,
@@ -141,6 +145,9 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Papan Informasi Sekolah */}
+      <SchoolInfoBoard infos={schoolInfos} role="guru" />
 
       {/* 2. Notice if students need coaching */}
       {studentsNeedingCoaching.length > 0 && (
