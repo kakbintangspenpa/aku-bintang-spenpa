@@ -83,6 +83,8 @@ export const AdminInfoManager: React.FC<AdminInfoManagerProps> = ({
   const [copiedSql, setCopiedSql] = useState(false);
   const [isCheckingSync, setIsCheckingSync] = useState(false);
   const infoTableMissing = storageService.getInfoTableMissing();
+  const infoPermissionError = storageService.getInfoPermissionError();
+  const showSqlBanner = infoTableMissing || infoPermissionError;
 
   const stats = useMemo(() => {
     const activeCount = infos.filter(i => i.isActive).length;
@@ -260,18 +262,20 @@ export const AdminInfoManager: React.FC<AdminInfoManagerProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Admin-only SQL notice if school_infos table has not been created in Supabase */}
-      {infoTableMissing && (
+      {/* Admin-only SQL notice if school_infos table is missing or RLS blocks writes */}
+      {showSqlBanner && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3 text-xs text-amber-950">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-start gap-2.5">
               <Database className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-extrabold text-sm">
-                  Tabel <code className="font-mono">school_infos</code> belum ada di Supabase
+                  {infoPermissionError
+                    ? 'Izin Simpan (RLS) tabel school_infos di Supabase perlu dibuka'
+                    : 'Tabel school_infos belum ada di Supabase'}
                 </h4>
                 <p className="text-amber-800 mt-0.5 leading-relaxed">
-                  Informasi sementara tersimpan di perangkat ini. Agar pengumuman tampil otomatis di perangkat Siswa, Guru, dan Orang Tua lainnya, jalankan perintah SQL berikut satu kali di <strong>Supabase SQL Editor</strong>.
+                  Informasi yang Anda buat tetap aman tersimpan di browser ini dan tidak akan hilang. Agar informasi langsung tersimpan ke server Supabase dan tampil di perangkat Siswa, Guru, serta Orang Tua, jalankan SQL berikut satu kali di <strong>Supabase SQL Editor</strong> lalu klik <strong>Cek Ulang</strong>.
                 </p>
               </div>
             </div>

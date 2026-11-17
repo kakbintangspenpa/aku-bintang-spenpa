@@ -50,6 +50,8 @@ export const AdminTimeRulesManager: React.FC<AdminTimeRulesManagerProps> = ({
   const [isCheckingSync, setIsCheckingSync] = useState(false);
 
   const timeRulesTableMissing = storageService.getTimeRulesTableMissing();
+  const timeRulesPermissionError = storageService.getTimeRulesPermissionError();
+  const showSqlBanner = timeRulesTableMissing || timeRulesPermissionError;
 
   useEffect(() => {
     setRules(storageService.getHabitTimeRules());
@@ -118,17 +120,19 @@ export const AdminTimeRulesManager: React.FC<AdminTimeRulesManagerProps> = ({
 
   return (
     <div className="space-y-4">
-      {timeRulesTableMissing && (
+      {showSqlBanner && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3 text-xs text-amber-950">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-start gap-2.5">
               <Database className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-extrabold text-sm">
-                  Tabel <code className="font-mono">habit_time_rules</code> belum dibuat di Supabase
+                  {timeRulesPermissionError
+                    ? 'Izin Simpan (RLS) tabel habit_time_rules di Supabase perlu dibuka'
+                    : 'Tabel habit_time_rules belum dibuat di Supabase'}
                 </h4>
                 <p className="text-amber-800 mt-0.5 leading-relaxed">
-                  Pengaturan batas waktu saat ini tersimpan di perangkat ini. Agar perubahan batas waktu langsung berlaku untuk semua perangkat Siswa, jalankan SQL berikut satu kali di <strong>Supabase SQL Editor</strong>.
+                  Pengaturan batas waktu saat ini tersimpan di perangkat ini. Agar perubahan batas waktu langsung berlaku untuk semua perangkat Siswa, jalankan SQL berikut satu kali di <strong>Supabase SQL Editor</strong> lalu klik <strong>Cek Ulang</strong>.
                 </p>
               </div>
             </div>

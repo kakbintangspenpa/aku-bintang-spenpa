@@ -53,6 +53,8 @@ const STORAGE_KEYS = {
   BADGES: '7k_badges_v1',
   AUDIT_LOGS: '7k_audit_logs_v1',
   SCHOOL_INFOS: '7k_school_infos_v1',
+  SCHOOL_INFOS_UNSYNCED: '7k_school_infos_unsynced_v1',
+  SCHOOL_INFOS_DELETED: '7k_school_infos_deleted_v1',
   HABIT_TIME_RULES: '7k_habit_time_rules_v1',
   DRIVE_CONFIG: '7k_drive_config_v1',
   CURRENT_USER: '7k_current_user_v1'
@@ -117,7 +119,9 @@ class StorageService {
     permissionError: false
   };
   private infoTableMissing = false;
+  private infoPermissionError = false;
   private timeRulesTableMissing = false;
+  private timeRulesPermissionError = false;
 
   subscribeSync(listener: () => void): () => void {
     this.syncListeners.push(listener);
@@ -138,8 +142,16 @@ class StorageService {
     return this.infoTableMissing;
   }
 
+  getInfoPermissionError(): boolean {
+    return this.infoPermissionError;
+  }
+
   getTimeRulesTableMissing(): boolean {
     return this.timeRulesTableMissing;
+  }
+
+  getTimeRulesPermissionError(): boolean {
+    return this.timeRulesPermissionError;
   }
 
   // --- Initialization & Helper ---
@@ -255,8 +267,26 @@ class StorageService {
         this.setItem(STORAGE_KEYS.AUDIT_LOGS, logsRes.data.map(mapAuditLogFromDb));
       }
 
-      // Sync school_infos independently so a not-yet-created table never breaks the other 7 tables
+      // Sync school_infos independently & safely preserve local unsynced items
       try {
+        // 1. Retry any pending deletions first
+        const pendingDeletes = this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_DELETED, []);
+        for (const delId of pendingDeletes) {
+          await this.syncSchoolInfoDelete(delId);
+        }
+
+        // 2. Retry any unsynced local additions/edits
+        const localInfosBefore = this.getSchoolInfos();
+        const pendingUpserts = this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_UNSYNCED, []);
+        for (const upId of pendingUpserts) {
+          const item = localInfosBefore.find(i => i.id === upId);
+          if (item) {
+            await this.syncSchoolInfoUpsert(item);
+          } else {
+            this.removeUnsyncedInfoId(upId);
+          }
+        }
+
         const infosRes = await supabase
           .from('school_infos')
           .select('*')
@@ -270,12 +300,37 @@ class StorageService {
             infosRes.error.code === '42P01' ||
             msg.includes('could not find the table') ||
             msg.includes('does not exist');
-          if (isMissingTable) {
-            this.infoTableMissing = true;
-          }
+          const isRls =
+            infosRes.error.code === '42501' ||
+            msg.includes('permission denied') ||
+            msg.includes('row-level security');
+          if (isMissingTable) this.infoTableMissing = true;
+          if (isRls) this.infoPermissionError = true;
         } else if (infosRes.data) {
           this.infoTableMissing = false;
-          this.saveSchoolInfos(infosRes.data.map(mapSchoolInfoFromDb));
+          const deletedSet = new Set(this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_DELETED, []));
+          const unsyncedSet = new Set(this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_UNSYNCED, []));
+          const currentLocal = this.getSchoolInfos();
+          const dbInfos = infosRes.data
+            .map(mapSchoolInfoFromDb)
+            .filter(item => !deletedSet.has(item.id));
+
+          // Preserve local items not yet successfully persisted to Supabase
+          const dbMap = new Map<string, SchoolInfo>();
+          dbInfos.forEach(item => dbMap.set(item.id, item));
+          currentLocal.forEach(localItem => {
+            if (unsyncedSet.has(localItem.id) || this.infoPermissionError || !dbMap.has(localItem.id) && unsyncedSet.size > 0) {
+              if (!deletedSet.has(localItem.id)) {
+                dbMap.set(localItem.id, localItem);
+              }
+            }
+          });
+
+          const merged = Array.from(dbMap.values()).sort((a, b) => {
+            if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+            return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+          });
+          this.saveSchoolInfos(merged);
         }
       } catch {
         // Keep localStorage fallback silently
@@ -705,6 +760,36 @@ class StorageService {
   }
 
   // --- School Information / Announcements ---
+  private addUnsyncedInfoId(id: string): void {
+    const ids = this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_UNSYNCED, []);
+    if (!ids.includes(id)) {
+      ids.push(id);
+      this.setItem(STORAGE_KEYS.SCHOOL_INFOS_UNSYNCED, ids);
+    }
+  }
+
+  private removeUnsyncedInfoId(id: string): void {
+    const ids = this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_UNSYNCED, []);
+    if (ids.includes(id)) {
+      this.setItem(STORAGE_KEYS.SCHOOL_INFOS_UNSYNCED, ids.filter(x => x !== id));
+    }
+  }
+
+  private addDeletedInfoId(id: string): void {
+    const ids = this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_DELETED, []);
+    if (!ids.includes(id)) {
+      ids.push(id);
+      this.setItem(STORAGE_KEYS.SCHOOL_INFOS_DELETED, ids);
+    }
+  }
+
+  private removeDeletedInfoId(id: string): void {
+    const ids = this.getItem<string[]>(STORAGE_KEYS.SCHOOL_INFOS_DELETED, []);
+    if (ids.includes(id)) {
+      this.setItem(STORAGE_KEYS.SCHOOL_INFOS_DELETED, ids.filter(x => x !== id));
+    }
+  }
+
   getSchoolInfos(): SchoolInfo[] {
     return this.getItem<SchoolInfo[]>(STORAGE_KEYS.SCHOOL_INFOS, []);
   }
@@ -729,6 +814,7 @@ class StorageService {
     };
     list.unshift(newInfo);
     this.saveSchoolInfos(list);
+    this.addUnsyncedInfoId(newInfo.id);
     void this.syncSchoolInfoUpsert(newInfo);
     this.addAuditLog(actorName, actorRole, 'TAMBAH_INFORMASI', `Menerbitkan informasi sekolah: "${newInfo.title}"`);
     return newInfo;
@@ -749,6 +835,7 @@ class StorageService {
       updatedAt: new Date().toISOString()
     };
     this.saveSchoolInfos(list);
+    this.addUnsyncedInfoId(list[idx].id);
     void this.syncSchoolInfoUpsert(list[idx]);
     this.addAuditLog(actorName, actorRole, 'UBAH_INFORMASI', `Memperbarui informasi sekolah: "${list[idx].title}"`);
     return list[idx];
@@ -760,6 +847,8 @@ class StorageService {
     if (!target) return false;
     const filtered = list.filter(item => item.id !== id);
     this.saveSchoolInfos(filtered);
+    this.removeUnsyncedInfoId(id);
+    this.addDeletedInfoId(id);
     void this.syncSchoolInfoDelete(id);
     this.addAuditLog(actorName, actorRole, 'HAPUS_INFORMASI', `Menghapus informasi sekolah: "${target.title}"`);
     return true;
@@ -774,13 +863,17 @@ class StorageService {
         const msg = (error.message || '').toLowerCase();
         if (error.code === 'PGRST205' || error.code === '42P01' || msg.includes('does not exist') || msg.includes('could not find')) {
           this.infoTableMissing = true;
-          this.notifySync();
+        } else if (error.code === '42501' || msg.includes('permission denied') || msg.includes('row-level security')) {
+          this.infoPermissionError = true;
         }
+        this.notifySync();
       } else {
         this.infoTableMissing = false;
+        this.infoPermissionError = false;
+        this.removeUnsyncedInfoId(info.id);
       }
     } catch {
-      // ignore network failure; localStorage cache keeps data
+      // ignore network failure; localStorage + unsynced list keeps data intact
     }
   }
 
@@ -791,7 +884,12 @@ class StorageService {
         const msg = (error.message || '').toLowerCase();
         if (error.code === 'PGRST205' || error.code === '42P01' || msg.includes('does not exist') || msg.includes('could not find')) {
           this.infoTableMissing = true;
+        } else if (error.code === '42501' || msg.includes('permission denied') || msg.includes('row-level security')) {
+          this.infoPermissionError = true;
         }
+        this.notifySync();
+      } else {
+        this.removeDeletedInfoId(id);
       }
     } catch {
       // ignore
@@ -851,10 +949,13 @@ class StorageService {
         const msg = (error.message || '').toLowerCase();
         if (error.code === 'PGRST205' || error.code === '42P01' || msg.includes('does not exist') || msg.includes('could not find')) {
           this.timeRulesTableMissing = true;
-          this.notifySync();
+        } else if (error.code === '42501' || msg.includes('permission denied') || msg.includes('row-level security')) {
+          this.timeRulesPermissionError = true;
         }
+        this.notifySync();
       } else {
         this.timeRulesTableMissing = false;
+        this.timeRulesPermissionError = false;
       }
     } catch {
       // keep local cache
