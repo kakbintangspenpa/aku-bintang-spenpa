@@ -512,16 +512,16 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
                         </button>
                       </div>
 
-                      <p className="text-xs text-slate-700 leading-snug">
+                      <p className="text-xs text-slate-700 leading-relaxed">
                         "{j.activityDescription}"
                       </p>
 
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-0.5">
                         {j.photoUrl ? (
                           <button
                             type="button"
                             onClick={() => onViewPhoto(j.photoUrl!, `${habit?.title} - ${j.siswaName}`)}
-                            className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline"
+                            className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline cursor-pointer"
                           >
                             <ImageIcon className="w-3.5 h-3.5" />
                             <span>Foto Bukti</span>
@@ -530,14 +530,32 @@ export const SiswaDashboard: React.FC<SiswaDashboardProps> = ({
                           <span className="text-slate-400">Tanpa foto</span>
                         )}
 
-                        {j.guruFeedback ? (
-                          <span className="text-blue-700 font-semibold text-[11px] truncate max-w-[220px]">
-                            ✓ Guru: "{j.guruFeedback}"
-                          </span>
-                        ) : (
+                        {!j.guruFeedback && (
                           <span className="text-slate-400 text-[11px]">Menunggu respon guru</span>
                         )}
                       </div>
+
+                      {j.guruFeedback && (
+                        <div className="bg-blue-50/80 border border-blue-200/70 rounded-xl p-2.5 text-xs text-blue-950 leading-relaxed">
+                          <span className="font-bold text-blue-800 block text-[11px] mb-0.5">
+                            ✓ Respon Guru{j.guruFeedbackBy ? ` (${j.guruFeedbackBy})` : ''}:
+                          </span>
+                          <p className="whitespace-pre-line break-words">
+                            "{j.guruFeedback}"
+                          </p>
+                        </div>
+                      )}
+
+                      {j.parentNotes && (
+                        <div className="bg-amber-50/80 border border-amber-200/70 rounded-xl p-2.5 text-xs text-amber-950 leading-relaxed">
+                          <span className="font-bold text-amber-800 block text-[11px] mb-0.5">
+                            Catatan Orang Tua:
+                          </span>
+                          <p className="whitespace-pre-line break-words">
+                            "{j.parentNotes}"
+                          </p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
